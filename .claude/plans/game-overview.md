@@ -98,114 +98,7 @@ gemble/
 - stats.js is a JS library with `@types/stats.js` — usage in TypeScript is standard; no change needed
 - Verified: 120fps, dramatic rolling hills, mountains grounded in terrain, horizon haze working
 
-### Files to create in Phase 0
-
-**`src/input.ts`**
-```ts
-const keys = new Set<string>();
-export const initInput = () => {
-  window.addEventListener('keydown', e => keys.add(e.code));
-  window.addEventListener('keyup',  e => keys.delete(e.code));
-};
-export const isKeyDown = (code: string): boolean => keys.has(code);
-// FUTURE: add 'Space' for interact, 'Escape' for pause
-```
-
-**`src/scene.ts`** — exports `initScene(canvas)` → `{ scene, renderer, camera }` and `onResize()`
-- `WebGLRenderer({ antialias: true })`, shadows enabled
-- `PerspectiveCamera(70, aspect, 0.1, 800)`
-- Clear color: `0x87CEEB` (plain daylight sky for Phase 0 — replaced in Phase 2)
-- `AmbientLight(0xffffff, 0.6)`, `DirectionalLight(0xfff4e0, 1.0)` position `(80, 120, 50)`
-- No fog yet (Phase 2)
-- stats.js: `import Stats from 'stats.js'` — attach to DOM, call `stats.begin()/end()` in game loop
-
-**`src/terrain.ts`** — exports `createTerrain(scene)` → `{ mesh, getHeightAt }`
-- `PlaneGeometry(500, 500, 100, 100)` rotated to XZ
-- Height formula (pure, exported separately for testing later):
-  ```ts
-  export function computeTerrainHeight(x: number, z: number): number {
-    return Math.sin(x * 0.015) * 8 + Math.cos(z * 0.018) * 7
-      + Math.sin(x * 0.05 + z * 0.04) * 3
-      + Math.cos(x * 0.09) * Math.sin(z * 0.08) * 2;
-  }
-  ```
-- `MeshLambertMaterial({ color: 0x4a7c3f })` — mid green (darkened in Phase 2)
-- `mesh.receiveShadow = true`
-- `getHeightAt(x, z)`: downward Raycaster from `(x, 200, z)` → returns Y hit or 0
-- Mountains: 6–8 `ConeGeometry(60, 120, 5)` cones placed at radius 380–440, color `0x8a9a9a`. These are visual-only — no collision ever needed.
-
-**`src/player.ts`** — Phase 0 version: rotation only, no movement
-- State: `yaw = 0`
-- `TURN_SPEED = 1.8` rad/s
-- `update(dt)`: Left arrow → `yaw += TURN_SPEED * dt`, Right → subtract
-- Camera: position fixed at `(0, getHeightAt(0,0) + 1.7, 0)`, rotation `(0, yaw, 0, 'YXZ')`
-- `'YXZ'` rotation order is critical — set it now so adding pitch later doesn't break anything
-  ```ts
-  // FUTURE: add Up/Down arrow pitch here (Phase 1 adds forward movement instead)
-  // FUTURE: posX/posZ will be player world position when movement is added in Phase 1
-  ```
-
-**`src/main.ts`**
-```ts
-import * as THREE from 'three';
-import Stats from 'stats.js';
-import { initScene, onResize } from './scene';
-import { createTerrain } from './terrain';
-import { createPlayer } from './player';
-import { initInput } from './input';
-// FUTURE Phase 1: import { createTrees } from './trees';
-// FUTURE Phase 2: import { createAtmosphere } from './atmosphere';
-// FUTURE Phase 2: import { createProps } from './props';
-// FUTURE Phase 3: import { createRoad } from './road';
-// FUTURE Phase 4: import { createCity } from './city';
-// FUTURE Phase 4: import { createGem } from './gem';
-
-const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-const { scene, renderer, camera } = initScene(canvas);
-const stats = new Stats(); document.body.appendChild(stats.dom);
-initInput();
-const { getHeightAt } = createTerrain(scene);
-const { update: updatePlayer } = createPlayer(camera, getHeightAt);
-
-const clock = new THREE.Clock();
-function loop() {
-  requestAnimationFrame(loop);
-  stats.begin();
-  const dt = clock.getDelta();
-  updatePlayer(dt);
-  // FUTURE Phase 1: updatePlayer gains movement; add updateTrees(dt) here
-  // FUTURE Phase 4: updateGem(dt); checkGemPickup(); updateCity(dt);
-  renderer.render(scene, camera);
-  stats.end();
-}
-loop();
-window.addEventListener('resize', onResize);
-```
-
-### Phase 0 Scaffold Steps
-
-1. ~~`yarn create vite . --template vanilla-ts`~~ — already done
-2. ~~Delete Vite boilerplate; replace `index.html` with canvas-only page~~ — done
-3. ~~`yarn add three stats.js`~~ — done (`stats.js` in `package.json`)
-4. ~~`yarn add -D vitest`~~ — done
-5. Create `src/` files as above
-6. `yarn dev` → open `localhost:5173`
-
-### Phase 0 Visual Checklist (validate before moving to Phase 1)
-
-- [ ] Page loads, no console errors
-- [ ] Terrain visible as a green undulating plane with gentle hills
-- [ ] Distant mountain silhouettes visible (6+ peaks)
-- [ ] Sky is blue (not black)
-- [ ] Left arrow rotates view left, right arrow rotates right
-- [ ] Camera stays at correct ground height (doesn't float above or clip into terrain)
-- [ ] `stats.js` FPS counter visible in top-left corner, showing 60fps
-- [ ] No WebGL errors in console
-
-### Phase 0 Commit
-```
-git add . && git commit -m "Phase 0: terrain, mountains, sky, camera rotation"
-```
+✅ Visually validated — 120fps, dramatic rolling hills, mountains grounded in terrain, horizon haze, no WebGL errors.
 
 ---
 
@@ -269,68 +162,53 @@ export function clampToWorld(x: number, z: number, limit: number): { x: number; 
 ```
 
 ### Phase 1 Visual Checklist
-- [ ] Dense forest visible — trees fill the world
-- [ ] Arrow Up walks forward, Down walks backward, Left/Right still rotate
-- [ ] Camera follows terrain height over hills (no floating or clipping)
-- [ ] Can't walk through trees (pushback works)
-- [ ] Can't walk off world edge
-- [ ] 60fps in dense forest sections
 
-### Phase 1 Tests (add after visual validation)
-```
-src/__tests__/terrain.test.ts   — computeTerrainHeight range check
-src/__tests__/player.test.ts    — movement delta math, tree collision, world clamp
-```
+✅ Visually validated — dense forest, forward/backward movement, terrain height tracking, trunk-only collision, world boundary all working.
 
-### Phase 1 Commit
-```
-git add . && git commit -m "Phase 1: trees, forward/back movement, tree collision"
-```
+### Phase 1 Tests ✅ DONE (commit 7366500)
+
+- `src/terrain.test.ts` — `computeTerrainHeight`: origin value, finite output, ±30 range, determinism
+- `src/player.test.ts` — `computeMovementDelta`, `isBlockedByTree`, `clampToWorld`: happy path + edge cases
 
 ---
 
-## Phase 2 — Atmosphere (Dusk + Rocks + Grass) — Props ✅ Done, Atmosphere Pending
+## Phase 2 — Atmosphere + Props — Props ✅ Done, Full Atmosphere Pending
 
-**Goal:** Transform the neutral daytime scene into the dusk mystery atmosphere. Add ground detail props.
+**Goal:** Moody night/mystery atmosphere with heavy fog. Add ground detail props.
 
-**New files:** `src/atmosphere.ts` (pending), `src/props.ts` ✅ done  
-**Modified files:** `src/scene.ts` (update light/fog colors), `src/terrain.ts` (darker ground color)
+**New files:** `src/props.ts` ✅ done  
+**Modified files:** `src/scene.ts` (lighting + sky), `src/terrain.ts` (ground texture)
 
 ### `src/props.ts` ✅ COMPLETE
 All props use InstancedMesh. Accepts `mountainObstacles` to keep props out of mountain bases.
 - **200 small/medium rocks** (scale 0.3–1.4) + **45 large boulders** (scale 1.5–3.5): `DodecahedronGeometry(0.7, 0)`, dome-based — center positioned below groundY so only the upper dome is visible
 - **250 main bushes** (scale 0.6–1.4) + **400 small ground-cover shrubs** (scale 0.2–0.55): `IcosahedronGeometry(1.0, 1)`, dome-based with varied XZ/Y ratios per instance for natural irregular shape. Grass tufts (crossed planes) removed — replaced by these ground-cover shrubs.
 
-### `src/atmosphere.ts` — PENDING
-- Encapsulates all dusk-specific settings as named constants (easy to tweak)
-- Exports `applyDuskAtmosphere(scene, renderer)`:
-  - `renderer.setClearColor(0x1a1228)` — deep purple-black sky
-  - `scene.fog = new THREE.FogExp2(0x1a1228, 0.018)` — heavy purple fog, trees fade ~80 units out
-  - Updates `AmbientLight` to `0x2a1a4a` (blue-purple, dim)
-  - Updates `DirectionalLight` to `0xc4601a` (warm orange-amber), repositioned to `(-300, 40, -200)` — very low dusk sun from west, casts long shadows
-  - Adds secondary `DirectionalLight(0x3a2060, 0.3)` from east — cool purple fill, no shadows
-- Terrain material color updated to `0x1a2e12` (near-black dark green)
+### `src/scene.ts` — Nighttime lighting ✅ DONE (commit 7366500)
+Night sky and moonlight were applied directly in `scene.ts` rather than a separate `atmosphere.ts` module — simpler and no reason to separate it. Current state:
+- `scene.background = new THREE.Color(0x1a2a4a)` — dark navy night sky
+- `scene.fog = new THREE.FogExp2(0x1a2a4a, 0.004)` — light fog matching sky (density increase still pending)
+- `AmbientLight(0x9aaec8, 0.5)` — cool blue-grey moonlight fill
+- `DirectionalLight(0xd0ddf0, 0.85)` — cool white moon directional, casts shadows
+- 4 cloud groups: `IcosahedronGeometry(1,1)` blobs at y=142–152, color `0xc8d4e8`
+
+**Still pending for full atmosphere:**
+- Increase fog density to `0.018` so trees fade to silhouettes at ~80 units
+- Swap sky + fog color to deep purple-black `0x1a1228` for mystery/dusk feel
+- Add low warm-orange light from west for ambient glow on scene (replaces moon)
+- Darken terrain color to near-black `0x1a2e12`
 
 ### Phase 2 Visual Checklist
-- [x] Rocks scattered on terrain (done)
-- [x] Grass tufts visible near player (done)
-- [x] Bushes visible as low dome shapes (done)
-- [ ] Sky is deep purple-black
+- [x] Rocks scattered on terrain ✅
+- [x] Bushes and ground-cover shrubs visible ✅
+- [x] Night sky (navy) + moonlit clouds ✅
 - [ ] Heavy fog — trees beyond ~80 units fade to silhouettes
-- [ ] Orange dusk sun casts long shadows from low angle
-- [ ] Terrain is near-black dark green
+- [ ] Sky transitions to deep purple-black mystery tone
+- [ ] Terrain darkened to near-black forest floor
 - [ ] Still 60fps
 
 ### Phase 2 Tests
-```
-src/__tests__/atmosphere.test.ts  — fog density constant in expected range
-src/__tests__/props.test.ts       — prop positions stay within world bounds
-```
-
-### Phase 2 Commit
-```
-git add . && git commit -m "Phase 2: dusk atmosphere, rocks, grass"
-```
+No pure functions to test in props or atmosphere. Skip.
 
 ---
 
@@ -358,10 +236,6 @@ git add . && git commit -m "Phase 2: dusk atmosphere, rocks, grass"
 - [ ] Road winds naturally through hills, not floating
 - [ ] Road visually connects forest zone to where city will be
 
-### Phase 3 Commit
-```
-git add . && git commit -m "Phase 3: two-lane road through forest"
-```
 
 ---
 
@@ -426,13 +300,8 @@ Exports `{ collisionBoxes: BuildingBox[], update(dt: number) }` — `update` spi
 
 ### Phase 4 Tests
 ```
-src/__tests__/city.test.ts  — building collision boxes correct dimensions; AABB rejection
-src/__tests__/player.test.ts — add building collision tests
-```
-
-### Phase 4 Commit
-```
-git add . && git commit -m "Phase 4: abandoned city, gem"
+src/city.test.ts    — building collision boxes correct dimensions; AABB rejection
+src/player.test.ts  — add isBlockedByBuilding tests
 ```
 
 ---
@@ -528,11 +397,6 @@ export function shouldStartle(
 src/birds.test.ts — shouldStartle radius math; state transitions
 ```
 
-### Phase 5 Commit
-
-```
-feat(birds): resting crows that startle and fly away on approach
-```
 
 ---
 

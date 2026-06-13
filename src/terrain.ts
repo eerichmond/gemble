@@ -62,28 +62,32 @@ export function createTerrain(scene: THREE.Scene): TerrainResult {
 type HeightFn = (x: number, z: number) => number;
 
 function addMountains(scene: THREE.Scene, getHeightAt: HeightFn): void {
-  // Mountains placed at radius 160-220 — inside the terrain boundary (±250).
-  // Each cone is buried ~35% underground so peaks emerge naturally from hills.
+  // Mountains at radius 225-245: near the terrain edge (±250) so they appear
+  // deep in the distance. Light blue-grey color blends with fog at that range.
   // FUTURE Phase 2: material color updated to dark purple silhouette 0x150d25
-  const material = new THREE.MeshLambertMaterial({ color: 0x8a9a9a });
+  const material = new THREE.MeshLambertMaterial({ color: 0xb0c4cc });
 
   const angles = [15, 55, 100, 145, 200, 240, 290, 335];
-  const radii  = [180, 200, 175, 190, 210, 185, 195, 200];
+  const radii = [235, 240, 228, 242, 238, 230, 244, 236];
 
   angles.forEach((angleDeg, i) => {
     const angle = (angleDeg * Math.PI) / 180;
-    const radius = radii[i] ?? 190;
+    const radius = radii[i] ?? 235;
     const cx = Math.sin(angle) * radius;
     const cz = Math.cos(angle) * radius;
     const groundY = getHeightAt(cx, cz);
 
     // Each group: 2–3 overlapping cones of varying height for a ridge silhouette
-    const peaks: [number, number, number][] = [[0, 0, 110], [-22, 12, 80], [18, -8, 95]];
+    const peaks: [number, number, number][] = [
+      [0, 0, 120],
+      [-22, 12, 85],
+      [18, -8, 100],
+    ];
     peaks.forEach(([dx, dz, height]) => {
-      const geo = new THREE.ConeGeometry(48 + Math.random() * 18, height, 5);
+      const geo = new THREE.ConeGeometry(52 + Math.random() * 20, height, 5);
       const cone = new THREE.Mesh(geo, material);
-      // Center cone at groundY + half its height, then bury base 35% underground
-      cone.position.set(cx + dx, groundY + height * 0.15, cz + dz);
+      // Bury the base 40% underground — only the upper portion is visible
+      cone.position.set(cx + dx, groundY + height * 0.1, cz + dz);
       cone.castShadow = false;
       scene.add(cone);
     });

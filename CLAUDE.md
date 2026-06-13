@@ -17,6 +17,19 @@ This project is in active development. Check `.claude/plans/` for design documen
 - **Linting**: ESLint with TypeScript rules
 - **Formatting**: Prettier (enforced via ESLint plugin)
 
+## Temporary files
+
+**Always** write temporary files to `src/temp/`. This is a hard rule — never write scratch output to the project root, `src/`, or anywhere else.
+
+`src/temp/` is gitignored (the folder is committed via `.gitkeep`; its contents are not).
+
+This includes, without exception:
+- **Playwright screenshots** — when using `browser_take_screenshot`, always save to `src/temp/<name>.png`
+- **Temporary scripts** — one-off debug or test scripts go in `src/temp/<name>.ts` and are deleted when done
+- **Any other scratch output** — logs, JSON dumps, generated test fixtures that are not meant to be committed
+
+After using a temporary file, delete it with `rm src/temp/<filename>` unless the user asks to keep it.
+
 ## Image tooling
 
 `magick` (ImageMagick 7) is available in the terminal for image manipulation. Use it to convert, resize, or process assets in `docs/` and `public/assets/`.

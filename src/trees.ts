@@ -122,10 +122,11 @@ function placeDeciduousTrees(
 ): void {
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x5c3a10 });
 
-  // Wide 12-sided cone reads as a classic rounded broadleaf silhouette,
-  // distinct from the layered pine cones. ConeGeometry(r=2.0, h=4.5, seg=12).
+  // IcosahedronGeometry(1,1): 20 lumpy facets give an organic foliage look, no sharp point.
+  // Scaled wide (XZ 2.2×) and flatter (Y 1.4×) so it reads as a spreading broadleaf crown,
+  // clearly distinct from the layered-cone pines.
   const trunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 2, 6);
-  const canopyGeo = new THREE.ConeGeometry(2.0, 4.5, 12);
+  const canopyGeo = new THREE.IcosahedronGeometry(1, 1);
 
   const trunk = new THREE.InstancedMesh(trunkGeo, trunkMat, DECIDUOUS_COUNT);
   trunk.castShadow = true;
@@ -159,12 +160,12 @@ function placeDeciduousTrees(
     dummy.updateMatrix();
     trunk.setMatrixAt(i, dummy.matrix);
 
-    // Canopy: cone half-height = 2.25*scale, center placed so bottom = trunk top
-    // center = groundY + 2*scale + 2.25*scale = groundY + 4.25*scale
+    // Icosahedron radius = 1. Y-scale = 1.4*scale → Y-extent = ±1.4*scale.
+    // Center at groundY + 3.4*scale so bottom = 3.4 - 1.4 = 2.0 = trunk top. ✓
     const colorIdx = i % DECIDUOUS_CANOPY_COLORS.length;
     const instanceIdx = Math.floor(i / DECIDUOUS_CANOPY_COLORS.length);
-    dummy.position.set(x, groundY + 4.25 * scale, z);
-    dummy.scale.set(scale * 1.15, scale, scale * 1.15); // slightly wider than tall
+    dummy.position.set(x, groundY + 3.4 * scale, z);
+    dummy.scale.set(scale * 2.2, scale * 1.4, scale * 2.2); // wide spreading dome
     dummy.updateMatrix();
     canopyMeshes[colorIdx].setMatrixAt(instanceIdx, dummy.matrix);
     dummy.scale.setScalar(scale);

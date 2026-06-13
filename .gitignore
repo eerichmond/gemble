@@ -10,6 +10,12 @@ dist/
 # npm — not used, project uses Yarn
 package-lock.json
 
+# Temporary files (screenshots, debug scripts, playwright output)
+src/temp/*
+!src/temp/.gitkeep
+
 # Editor
 .DS_Store
 *.local
+
+.playwright-mcp/

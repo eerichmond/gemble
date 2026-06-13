@@ -40,9 +40,8 @@ export function createTerrain(scene: THREE.Scene): TerrainResult {
   positions.needsUpdate = true;
   geometry.computeVertexNormals();
 
-  // Phase 0: mid green. Darkened to near-black forest floor in Phase 2.
-  // FUTURE Phase 2: update color to 0x1a2e12
-  const material = new THREE.MeshLambertMaterial({ color: 0x4a7c3f });
+  // Color tints the texture toward forest-floor green under cool moonlight
+  const material = new THREE.MeshLambertMaterial({ map: createGroundTexture(), color: 0x6a9a58 });
 
   const mesh = new THREE.Mesh(geometry, material);
   mesh.receiveShadow = true;
@@ -65,6 +64,57 @@ export function createTerrain(scene: THREE.Scene): TerrainResult {
   return { mesh, getHeightAt, mountainObstacles };
 }
 
+// Procedural ground texture: grass strokes + dirt patches, tiled across the terrain.
+// Uses the browser Canvas 2D API — no image assets needed.
+function createGroundTexture(): THREE.CanvasTexture {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#4a7c3f';
+  ctx.fillRect(0, 0, size, size);
+
+  // Large-ish color patches — darker green clumps and occasional dirt
+  for (let i = 0; i < 35; i++) {
+    const px = Math.random() * size;
+    const py = Math.random() * size;
+    const rx = 18 + Math.random() * 55;
+    const ry = 12 + Math.random() * 38;
+    const isDirt = Math.random() < 0.12;
+    ctx.globalAlpha = 0.14 + Math.random() * 0.2;
+    ctx.fillStyle = isDirt ? '#7a5828' : Math.random() < 0.5 ? '#2d5a1e' : '#5a8a38';
+    ctx.beginPath();
+    ctx.ellipse(px, py, rx, ry, Math.random() * Math.PI, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Fine individual grass strokes for close-up texture detail
+  const blades = ['#2d5520', '#3d6a28', '#5a8840', '#4a7035', '#226018', '#3a5c28'];
+  for (let i = 0; i < 3500; i++) {
+    const bx = Math.random() * size;
+    const by = Math.random() * size;
+    const len = 3 + Math.random() * 8;
+    const angle = -(Math.PI / 2) + (Math.random() - 0.5) * 0.55;
+    ctx.strokeStyle = blades[Math.floor(Math.random() * blades.length)]!;
+    ctx.lineWidth = 0.6 + Math.random() * 0.8;
+    ctx.globalAlpha = 0.45 + Math.random() * 0.55;
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.lineTo(bx + Math.cos(angle) * len, by + Math.sin(angle) * len);
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(24, 24); // each tile ≈ 21×21 world units
+  return tex;
+}
+
 type HeightFn = (x: number, z: number) => number;
 
 function addMountains(scene: THREE.Scene, getHeightAt: HeightFn): CircleObstacle[] {
@@ -75,8 +125,10 @@ function addMountains(scene: THREE.Scene, getHeightAt: HeightFn): CircleObstacle
 
   const angles = [15, 55, 100, 145, 200, 240, 290, 335];
   const radii = [235, 240, 228, 242, 238, 230, 244, 236];
-  // Collision radius covers the full cone base of each group (peaks offset ≤25 + cone radius ≤72)
-  const MOUNTAIN_RADIUS = 80;
+  // Cones are buried 40% underground, so the visible cross-section at ground level
+  // = base_radius × 0.6 ≈ 31–43 units. Use 37 (average) so the player stops right
+  // at the mountain surface without a large invisible buffer.
+  const PEAK_RADIUS = 37;
   const obstacles: CircleObstacle[] = [];
 
   angles.forEach((angleDeg, i) => {
@@ -85,9 +137,6 @@ function addMountains(scene: THREE.Scene, getHeightAt: HeightFn): CircleObstacle
     const cx = Math.sin(angle) * radius;
     const cz = Math.cos(angle) * radius;
     const groundY = getHeightAt(cx, cz);
-
-    // Collision circle per group center (covers all 3 peaks in the cluster)
-    obstacles.push({ x: cx, z: cz, radius: MOUNTAIN_RADIUS });
 
     // Each group: 2–3 overlapping cones of varying height for a ridge silhouette
     const peaks: [number, number, number][] = [
@@ -102,6 +151,8 @@ function addMountains(scene: THREE.Scene, getHeightAt: HeightFn): CircleObstacle
       cone.position.set(cx + dx, groundY + height * 0.1, cz + dz);
       cone.castShadow = false;
       scene.add(cone);
+      // One collision circle per peak — matches visual cone base closely
+      obstacles.push({ x: cx + dx, z: cz + dz, radius: PEAK_RADIUS });
     });
   });
 

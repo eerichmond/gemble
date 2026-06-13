@@ -223,16 +223,17 @@ git add . && git commit -m "Phase 0: terrain, mountains, sky, camera rotation"
   - Previous value of `2.5*scale` / `2.2*scale` blocked at canopy edge — incorrect
 - Pure helpers (`computeMovementDelta`, `isBlockedByTree`, `clampToWorld`) exported from `player.ts` for later Vitest unit tests
 - Mountains pushed to radius 225–245, lightened to `0xb0c4cc` for atmospheric distance
-- **Mountain collision**: `terrain.ts` exports `mountainObstacles: CircleObstacle[]` (8 group centers, radius 80 each). Trees/props/player all exclude/respect these zones.
+- **Mountain collision**: `terrain.ts` exports `mountainObstacles: CircleObstacle[]` — **24 per-peak obstacles** (8 groups × 3 peaks, radius 56 each). Per-peak matches the visible cone base; original per-group radius 80 was too wide and blocked the player far from the mountain.
 - **Mountain tree exclusion**: trees and props use `excludeZones` in their placement loops so nothing spawns inside mountain bases
 - `computeMovementDelta` uses `-sin/-cos` for forward direction (camera looks down -Z; `+sin/+cos` was backwards)
 
-**Forest variety additions (commit 5992b2b, fixes in 12b036c+):**
+**Forest variety additions (commit 5992b2b, fixes in 12b036c+, continued):**
 - **480 pines**: trunk `CylinderGeometry(0.15, 0.25, 2, 6)` + 3 stacked `ConeGeometry` tiers, scale 2.0–3.5x
-- **120 deciduous trees**: lighter-brown trunk + wide `ConeGeometry(2.0, 4.5, 12)` canopy (12-sided smooth cone). 5 canopy colors. Scale 1.8–3.0x. Canopy center = `groundY + 4.25*scale` (base aligns with trunk top).
+- **120 deciduous trees**: lighter-brown trunk + `IcosahedronGeometry(1, 1)` canopy scaled `(2.2, 1.4, 2.2) * scale`. Wide spreading dome shape (wider XZ than Y, lumpy facets) reads as organic broadleaf crown, clearly distinct from sharp-pointed pines. Canopy center = `groundY + 3.4*scale` so bottom (3.4 − 1.4 = 2.0) meets trunk top.
+  - Previously used a `ConeGeometry(2.0, 4.5, 12)` which looked too similar to pines.
 - **`src/props.ts`** (seeded RNG 99):
-  - 200 small/medium rocks + 45 large boulders: `DodecahedronGeometry(0.7, 0)`, dome-based (center below groundY so bottom half is buried). Large boulders scale 1.5–3.5x.
-  - 250 main bushes + 400 small ground-cover shrubs: `IcosahedronGeometry(1.0, 1)`, dome-based (center near groundY, varied XZ/Y ratios for natural look). Replaced the old crossed-plane grass tufts.
+  - 200 small/medium rocks + 45 large boulders: `DodecahedronGeometry(0.7, 0)`, dome-based (center positioned below groundY so only upper dome is visible). Large boulders scale 1.5–3.5x.
+  - 250 main bushes + 400 small ground-cover shrubs: `IcosahedronGeometry(1.0, 1)`, dome-based (center near groundY, varied XZ/Y ratios for natural look). Replaced crossed-plane grass tufts.
 
 ### `src/trees.ts`
 - 480 pines + 120 deciduous using InstancedMesh (10 draw calls total)
@@ -242,8 +243,9 @@ git add . && git commit -m "Phase 0: terrain, mountains, sky, camera rotation"
 
 ### `src/terrain.ts`
 - Exports `CircleObstacle { x, z, radius }` interface
-- `createTerrain` returns `mountainObstacles: CircleObstacle[]` — one circle per mountain group (radius 80)
+- `createTerrain` returns `mountainObstacles: CircleObstacle[]` — 24 circles (one per individual peak, radius 56)
 - Passed to `createTrees`, `createProps`, and `createPlayer` in `main.ts`
+- Ground: procedural `CanvasTexture` (512×512, tiled 24×24) with grass blade strokes and irregular dirt/green patches. No external image assets needed. Material `color: 0x6a9a58` tints texture toward forest green under cool moonlight.
 
 ### `src/player.ts` updates
 - `createPlayer(camera, getHeightAt, treePositions, mountainObstacles)` — fourth param added
@@ -520,6 +522,106 @@ src/birds.test.ts — shouldStartle radius math; state transitions
 
 ```
 feat(birds): resting crows that startle and fly away on approach
+```
+
+---
+
+## Phase 6 — Treasure Chests
+
+**Goal:** Scatter a handful of battered pirate-style treasure chests throughout the forest and city. Walk close to one, press Space, and the lid swings open so the player can peer inside. Chests are currently empty — a hook for future loot.
+
+**New files:** `src/chests.ts`  
+**Modified files:** `src/main.ts` (wire chests update + pass player position), `src/input.ts` (add Space key to `initInput` listener, already stubbed as `// FUTURE: add 'Space' for interact`)
+
+### `src/chests.ts`
+
+**Geometry (per chest — assembled under a `THREE.Group`):**
+
+| Part | Geometry | Material | Notes |
+|---|---|---|---|
+| Body | `BoxGeometry(0.8, 0.5, 0.5)` | dark wood `0x3d1f08` | main lower box |
+| Lid | `BoxGeometry(0.8, 0.3, 0.5)` | dark wood `0x3d1f08` | pivots open from back edge |
+| Interior floor | `BoxGeometry(0.72, 0.01, 0.44)` | dark velvet `0x1a0a0a` | visible when lid open |
+| Metal bands (×2) | `BoxGeometry(0.82, 0.08, 0.08)` | aged iron `0x3a3a3a` | horizontal strips on body front and back |
+| Lock hasp | `BoxGeometry(0.1, 0.12, 0.06)` | `0x5a5a5a` | centred on body front face |
+
+Lid's pivot is at the **back top edge** of the body. Achieve this by placing the lid's local origin at its bottom-back edge: shift geometry by `(0, 0.15, 0.25)` so the back-bottom edge is at local `(0,0,0)`, then rotate on the parent `Group`.
+
+**Placement:**
+- 8 chests placed randomly in the world (use same seeded RNG approach as `trees.ts`, seed 77)
+- Same clearance rules as trees: `SPAWN_CLEAR = 8` units from origin, exclude mountain zones
+- Each placed at `getHeightAt(x, z)`, rotated randomly on Y so they face varied directions
+- Exports `ChestPosition[]` for potential future collision or minimap use
+
+**State machine (per chest):**
+
+```ts
+type ChestState = 'closed' | 'opening' | 'open';
+```
+
+| State | Trigger | Behavior |
+|---|---|---|
+| `closed` | — | lid rotation.x = 0 (flat) |
+| `opening` | player ≤ 3 units + Space pressed | lid animates from 0 → −2.1 rad (~120°) over 0.6 s |
+| `open` | animation complete | lid stays at −2.1 rad; can see inside |
+
+Once open, a chest stays open (no close mechanic needed yet).
+
+**Interaction:**
+- Each frame in `update(dt, playerX, playerZ)`: for each `closed` chest, check `isNearChest` — if true, show a small text prompt (optional, skip if complex)
+- On Space key down (`isKeyDown('Space')`): if player is within 3 units of any closed chest → transition to `opening`
+- Only one chest can start opening per keypress (the nearest one)
+
+**Opening animation:**
+- Track `openTimer` per chest (0 → 0.6)
+- `lidGroup.rotation.x = lerp(0, -2.1, openTimer / 0.6)` — ease-in-out naturally from linear lerp
+- When `openTimer >= 0.6`, clamp to `−2.1` and set state to `open`
+
+**Pure helper (testable):**
+
+```ts
+export function isNearChest(
+  playerX: number, playerZ: number,
+  chestX: number, chestZ: number,
+  radius: number,
+): boolean
+```
+
+**Exports:**
+
+```ts
+export interface ChestPosition { x: number; z: number }
+
+export function createChests(
+  scene: THREE.Scene,
+  getHeightAt: (x: number, z: number) => number,
+  mountainObstacles?: CircleObstacle[],
+): { update: (dt: number, playerX: number, playerZ: number) => void }
+```
+
+### Phase 6 Visual Checklist
+
+- [ ] ~8 chests visible in the world, varied orientations
+- [ ] Chests look distinctly pirate — dark wood, metal bands, visible lock hasp
+- [ ] Lid is flat closed when resting
+- [ ] Walking within 3 units + pressing Space swings the lid open
+- [ ] Lid animates smoothly (~0.6 s) — not an instant snap
+- [ ] Lid opens backward (away from player), revealing the interior
+- [ ] Interior is visible at an angle through the open lid — dark and empty
+- [ ] Chest stays open once triggered
+- [ ] No fps drop with 8 chests in the scene
+- [ ] Chests do not spawn inside trees or mountain bases
+
+### Phase 6 Tests (add after visual validation)
+
+```
+src/chests.test.ts — isNearChest radius math; opening animation clamp
+```
+
+### Phase 6 Commit
+
+```
+feat(chests): interactive pirate treasure chests that open on approach + Space
 ```
 
 ---

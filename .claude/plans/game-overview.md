@@ -132,8 +132,8 @@ gemble/
   - 250 main bushes + 400 small ground-cover shrubs: `IcosahedronGeometry(1.0, 1)`, dome-based (center near groundY, varied XZ/Y ratios for natural look). Replaced crossed-plane grass tufts.
 
 **Nighttime scene (applied ahead of Phase 2 atmosphere — partial):**
-- `scene.background = new THREE.Color(0x1a2a4a)` — dark navy night sky
-- `scene.fog = new THREE.FogExp2(0x1a2a4a, 0.004)` — matching fog color
+- `scene.background = new THREE.Color(0x1e3564)` — dusk blue sky (lightened from original `0x1a2a4a` night navy per user feedback)
+- `scene.fog = new THREE.FogExp2(0x1e3564, 0.004)` — matching fog color
 - `AmbientLight(0x9aaec8, 0.5)` — cool blue-grey moonlight fill
 - `DirectionalLight(0xd0ddf0, 0.85)` (named `moon`) — cool white directional light
 - 4 cloud groups added via `addClouds()` in `scene.ts`: `IcosahedronGeometry(1,1)` blobs, flat-scaled wide, color `0xc8d4e8` (moonlit blue-grey), y=142–152
@@ -212,30 +212,31 @@ No pure functions to test in props or atmosphere. Skip.
 
 ---
 
-## Phase 3 — Road
+## Phase 3 — Road ✅ COMPLETE (commit TBD)
 
 **Goal:** A two-lane asphalt road with a yellow centerline winds from the forest southward. Following it feels like discovering a path.
 
 **New files:** `src/road.ts`
 
-### `src/road.ts`
-- Hand-placed waypoints defining the road centerline (south from `z=-60` to `z=-230`, gently curving)
-- Road surface: series of `PlaneGeometry` quads ~8 units wide, laid along waypoints, color `0x1a1a1a`
-- Yellow centerline: dashed `PlaneGeometry` strips, color `0xc8a800`, offset slightly above road to prevent Z-fighting
-- Road follows terrain naturally (no special flattening needed with gentle hills)
-- Exports `{}` — no collision needed (road is open, player walks freely on/off it)
-```ts
-// FUTURE: flatten terrain under road when upgrading terrain generator
-// FUTURE: add cracked pavement texture when asset pipeline is added
-// FUTURE: add road shoulder gravel strip
-```
+**Implementation notes:**
+- Road hidden from spawn — first waypoint at z=−62, player must explore south to discover it
+- 8 waypoints form a gentle S-curve: `[0,−62] → [−14,−95] → [−24,−128] → [−18,−158] → [−5,−188] → [10,−218] → [14,−245] → [4,−262]`
+- Road width: 12 units (two comfortable lanes)
+- `buildRibbon()` walks sampled spine, samples `getHeightAt()` per vertex — road hugs rolling terrain naturally
+- UV V accumulates arc length so the asphalt texture tiles cleanly along curves without stretching
+- White edge lines: `0.4` units wide, `0xd0d0d0`, positioned at road edges offset `Y_MARK = Y_ROAD + 0.02` above road
+- Yellow dashes: `0.36` wide, 2.5 units on / 4.0 units gap, `0xd4aa00`, built as a single `BufferGeometry`
+- Asphalt canvas texture: `256×256`, dark gray `#242424` base + 5000 aggregate speckles + subtle longitudinal wear streaks
+- Road surface Y offset `0.06` above terrain, markings `0.08` — both prevent Z-fighting cleanly
+- No collision barrier — player walks freely on and off the road
 
 ### Phase 3 Visual Checklist
-- [ ] Road visible from above, dark asphalt surface
-- [ ] Yellow centerline dashes visible
-- [ ] Road winds naturally through hills, not floating
-- [ ] Road visually connects forest zone to where city will be
-
+- [x] Road visible, dark asphalt surface distinct from terrain
+- [x] Yellow centerline dashes visible
+- [x] White edge lines on both sides
+- [x] Road winds naturally through hills, following terrain
+- [x] Road starts hidden — only found by walking south from spawn
+- [x] Road connects forest zone to city entrance area (z=−262)
 
 ---
 

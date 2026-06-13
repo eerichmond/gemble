@@ -12,10 +12,10 @@ export interface SceneResult {
 export function initScene(canvas: HTMLCanvasElement): SceneResult {
   const scene = new THREE.Scene();
 
-  // Dark navy night sky — dusk/night theme. Phase 2 will swap to deep purple dusk.
+  // Dusk sky — deep blue, lighter than full night so the scene reads as late evening.
   // FUTURE Phase 2: replace with FogExp2(0x1a1228, 0.018) for full dusk atmosphere
-  scene.background = new THREE.Color(0x1a2a4a);
-  scene.fog = new THREE.FogExp2(0x1a2a4a, 0.004);
+  scene.background = new THREE.Color(0x1e3564);
+  scene.fog = new THREE.FogExp2(0x1e3564, 0.004);
 
   renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
   renderer.setSize(window.innerWidth, window.innerHeight);

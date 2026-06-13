@@ -6,9 +6,8 @@ import { createTrees } from './trees';
 import { createProps } from './props';
 import { createPlayer } from './player';
 import { initInput } from './input';
+import { createRoad } from './road';
 // FUTURE Phase 2: import { applyDuskAtmosphere } from './atmosphere';
-// FUTURE Phase 2: import { createProps } from './props';
-// FUTURE Phase 3: import { createRoad } from './road';
 // FUTURE Phase 4: import { createCity } from './city';
 // FUTURE Phase 4: import { createGem } from './gem';
 
@@ -23,6 +22,7 @@ initInput();
 const { getHeightAt, mountainObstacles } = createTerrain(scene);
 const { treePositions } = createTrees(scene, getHeightAt, mountainObstacles);
 createProps(scene, getHeightAt, mountainObstacles);
+createRoad(scene, getHeightAt);
 const { update: updatePlayer } = createPlayer(
   camera,
   getHeightAt,

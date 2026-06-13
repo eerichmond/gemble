@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { CircleObstacle } from './terrain';
 
 export interface TreePosition {
   x: number;
@@ -27,13 +28,14 @@ const SPAWN_CLEAR = 20; // no trees within 20 units of spawn
 export function createTrees(
   scene: THREE.Scene,
   getHeightAt: (x: number, z: number) => number,
+  mountainObstacles: CircleObstacle[] = [],
 ): TreesResult {
   const rng = makeRng(42);
   const treePositions: TreePosition[] = [];
   const dummy = new THREE.Object3D();
 
-  placePines(scene, getHeightAt, rng, dummy, treePositions);
-  placeDeciduousTrees(scene, getHeightAt, rng, dummy, treePositions);
+  placePines(scene, getHeightAt, rng, dummy, treePositions, mountainObstacles);
+  placeDeciduousTrees(scene, getHeightAt, rng, dummy, treePositions, mountainObstacles);
 
   return { treePositions };
 }
@@ -46,6 +48,7 @@ function placePines(
   rng: () => number,
   dummy: THREE.Object3D,
   out: TreePosition[],
+  excludeZones: CircleObstacle[] = [],
 ): void {
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x3d2005 });
   const canopyMats = [
@@ -63,22 +66,23 @@ function placePines(
 
   // 4 draw calls total for all pine instances
   const trunk = new THREE.InstancedMesh(trunkGeo, trunkMat, PINE_COUNT);
-  const c0 = new THREE.InstancedMesh(canopyGeos[0]!, canopyMats[0]!, PINE_COUNT);
-  const c1 = new THREE.InstancedMesh(canopyGeos[1]!, canopyMats[1]!, PINE_COUNT);
-  const c2 = new THREE.InstancedMesh(canopyGeos[2]!, canopyMats[2]!, PINE_COUNT);
+  const c0 = new THREE.InstancedMesh(canopyGeos[0], canopyMats[0], PINE_COUNT);
+  const c1 = new THREE.InstancedMesh(canopyGeos[1], canopyMats[1], PINE_COUNT);
+  const c2 = new THREE.InstancedMesh(canopyGeos[2], canopyMats[2], PINE_COUNT);
   [trunk, c0, c1, c2].forEach(m => {
     m.castShadow = true;
     scene.add(m);
   });
 
   for (let i = 0; i < PINE_COUNT; i++) {
-    const { x, z } = randomWorldPos(rng, SPAWN_CLEAR);
+    const { x, z } = randomWorldPos(rng, SPAWN_CLEAR, excludeZones);
     const groundY = getHeightAt(x, z);
     // 2.0–3.5x scale → ~30–50 ft at game scale (player eye = 1.7 units ≈ 5.5 ft)
     const scale = 2.0 + rng() * 1.5;
     const yaw = rng() * Math.PI * 2;
 
-    out.push({ x, z, radius: 2.5 * scale });
+    // Trunk-only collision: base radius 0.25 * scale (CylinderGeometry base r=0.25)
+    out.push({ x, z, radius: 0.25 * scale });
 
     dummy.rotation.set(0, yaw, 0);
     dummy.scale.setScalar(scale);
@@ -114,6 +118,7 @@ function placeDeciduousTrees(
   rng: () => number,
   dummy: THREE.Object3D,
   out: TreePosition[],
+  excludeZones: CircleObstacle[] = [],
 ): void {
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x5c3a10 });
 
@@ -137,13 +142,14 @@ function placeDeciduousTrees(
   });
 
   for (let i = 0; i < DECIDUOUS_COUNT; i++) {
-    const { x, z } = randomWorldPos(rng, SPAWN_CLEAR);
+    const { x, z } = randomWorldPos(rng, SPAWN_CLEAR, excludeZones);
     const groundY = getHeightAt(x, z);
     // Deciduous trees slightly smaller than pines: 1.8–3.0x scale
     const scale = 1.8 + rng() * 1.2;
     const yaw = rng() * Math.PI * 2;
 
-    out.push({ x, z, radius: 2.2 * scale });
+    // Trunk-only collision: base radius 0.28 * scale (CylinderGeometry base r=0.28)
+    out.push({ x, z, radius: 0.28 * scale });
 
     dummy.rotation.set(0, yaw, 0);
     dummy.scale.setScalar(scale);
@@ -160,7 +166,7 @@ function placeDeciduousTrees(
     dummy.position.set(x, groundY + 4.25 * scale, z);
     dummy.scale.set(scale * 1.15, scale, scale * 1.15); // slightly wider than tall
     dummy.updateMatrix();
-    canopyMeshes[colorIdx]!.setMatrixAt(instanceIdx, dummy.matrix);
+    canopyMeshes[colorIdx].setMatrixAt(instanceIdx, dummy.matrix);
     dummy.scale.setScalar(scale);
   }
 
@@ -170,11 +176,23 @@ function placeDeciduousTrees(
 
 // ---- Shared helpers -------------------------------------------------------
 
-function randomWorldPos(rng: () => number, minRadius: number): { x: number; z: number } {
-  let x: number, z: number;
+function randomWorldPos(
+  rng: () => number,
+  minRadius: number,
+  excludeZones: CircleObstacle[] = [],
+): { x: number; z: number } {
+  let x = 0,
+    z = 0;
   do {
     x = (rng() - 0.5) * 440;
     z = (rng() - 0.5) * 440;
-  } while (Math.sqrt(x * x + z * z) < minRadius);
+  } while (
+    Math.sqrt(x * x + z * z) < minRadius ||
+    excludeZones.some(zone => {
+      const dx = x - zone.x;
+      const dz = z - zone.z;
+      return Math.sqrt(dx * dx + dz * dz) < zone.radius;
+    })
+  );
   return { x, z };
 }

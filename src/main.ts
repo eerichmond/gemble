@@ -20,10 +20,15 @@ document.body.appendChild(stats.dom);
 
 initInput();
 
-const { getHeightAt } = createTerrain(scene);
-const { treePositions } = createTrees(scene, getHeightAt);
-createProps(scene, getHeightAt);
-const { update: updatePlayer } = createPlayer(camera, getHeightAt, treePositions);
+const { getHeightAt, mountainObstacles } = createTerrain(scene);
+const { treePositions } = createTrees(scene, getHeightAt, mountainObstacles);
+createProps(scene, getHeightAt, mountainObstacles);
+const { update: updatePlayer } = createPlayer(
+  camera,
+  getHeightAt,
+  treePositions,
+  mountainObstacles,
+);
 // FUTURE Phase 4: const { collisionBoxes, update: updateCity } = createCity(scene, getHeightAt);
 // FUTURE Phase 4: const { update: updateGem } = createGem(scene, getHeightAt);
 

@@ -217,38 +217,38 @@ git add . && git commit -m "Phase 0: terrain, mountains, sky, camera rotation"
 - Seeded LCG RNG in `trees.ts` gives deterministic tree placement across hot-reloads
 - Tree scale adjusted to 2.0–3.5x after visual review — gives ~30–50 ft pines that dwarf the player (1.7 unit eye height ≈ 5.5 ft)
 - Count increased from 400 to 600 for denser canopy coverage
-- Collision radius = `2.5 * scale`, scales with tree size
+- **Collision is trunk-only for both pines and deciduous** — player can walk underneath canopy freely
+  - Pine: `radius = 0.25 * scale` (CylinderGeometry base r=0.25)
+  - Deciduous: `radius = 0.28 * scale` (CylinderGeometry base r=0.28)
+  - Previous value of `2.5*scale` / `2.2*scale` blocked at canopy edge — incorrect
 - Pure helpers (`computeMovementDelta`, `isBlockedByTree`, `clampToWorld`) exported from `player.ts` for later Vitest unit tests
-- Mountains also pushed to radius 225–245 and lightened to `0xb0c4cc` for better atmospheric distance
+- Mountains pushed to radius 225–245, lightened to `0xb0c4cc` for atmospheric distance
+- **Mountain collision**: `terrain.ts` exports `mountainObstacles: CircleObstacle[]` (8 group centers, radius 80 each). Trees/props/player all exclude/respect these zones.
+- **Mountain tree exclusion**: trees and props use `excludeZones` in their placement loops so nothing spawns inside mountain bases
+- `computeMovementDelta` uses `-sin/-cos` for forward direction (camera looks down -Z; `+sin/+cos` was backwards)
 
-**Forest variety additions (commit 5992b2b + fixes):**
-- **480 pines** (unchanged): trunk `CylinderGeometry(0.15, 0.25, 2, 6)` + 3 stacked `ConeGeometry` tiers, scale 2.0–3.5x
-- **120 deciduous trees**: lighter-brown trunk + wide `ConeGeometry(2.0, 4.5, 12)` canopy (12-sided smooth cone = classic broadleaf silhouette). 5 canopy colors. Scale 1.8–3.0x.
-  - Canopy positioned so base sits exactly at trunk top: center = `groundY + 4.25 * scale` (trunk top is at `groundY + 2*scale`, cone half-height = `2.25*scale`)
-  - **Fixed**: original IcosahedronGeometry canopy had a visible gap between trunk top and canopy bottom — replaced with cone geometry that properly connects.
-- **`src/props.ts`** created (seeded RNG 99):
-  - 200 rocks: `DodecahedronGeometry(0.7, 0)`, 3 grey tones, random tilt, flatten some on Y
-  - 250 bushes: `IcosahedronGeometry(1.0, 1)`, 4 dark green colors, centered at `groundY` (bottom half buried) so only the dome is visible — gives half-sphere bush shape. Scale XZ 1.1–1.5x, Y 0.7x.
-  - 600 grass tufts: crossed-plane `BufferGeometry` (two intersecting quads), `DoubleSide`, 3 green variants
+**Forest variety additions (commit 5992b2b, fixes in 12b036c+):**
+- **480 pines**: trunk `CylinderGeometry(0.15, 0.25, 2, 6)` + 3 stacked `ConeGeometry` tiers, scale 2.0–3.5x
+- **120 deciduous trees**: lighter-brown trunk + wide `ConeGeometry(2.0, 4.5, 12)` canopy (12-sided smooth cone). 5 canopy colors. Scale 1.8–3.0x. Canopy center = `groundY + 4.25*scale` (base aligns with trunk top).
+- **`src/props.ts`** (seeded RNG 99):
+  - 200 small/medium rocks + 45 large boulders: `DodecahedronGeometry(0.7, 0)`, dome-based (center below groundY so bottom half is buried). Large boulders scale 1.5–3.5x.
+  - 250 main bushes + 400 small ground-cover shrubs: `IcosahedronGeometry(1.0, 1)`, dome-based (center near groundY, varied XZ/Y ratios for natural look). Replaced the old crossed-plane grass tufts.
 
 ### `src/trees.ts`
 - 480 pines + 120 deciduous using InstancedMesh (10 draw calls total)
-- Pine = trunk cylinder + 3 stacked cones (different shades of dark green)
-- Deciduous = lighter trunk cylinder + wide smooth 12-sided cone canopy (5 color variants, 6 draw calls)
-- Placement: random XZ in `[-220, 220]`, 20-unit clearance at spawn
+- Both types: trunk-only collision radius (see above)
+- Accepts `mountainObstacles: CircleObstacle[]` to exclude placement from mountain zones
 - Exports `{ treePositions: TreePosition[] }` where `TreePosition = { x, z, radius }`
-- `castShadow = true` on all meshes
-```ts
-// FUTURE Phase 4: exclude trees from city bounding box [-60,60] × [-260,-380]
-// FUTURE: add dead/bare tree variant for atmosphere
-```
+
+### `src/terrain.ts`
+- Exports `CircleObstacle { x, z, radius }` interface
+- `createTerrain` returns `mountainObstacles: CircleObstacle[]` — one circle per mountain group (radius 80)
+- Passed to `createTrees`, `createProps`, and `createPlayer` in `main.ts`
 
 ### `src/player.ts` updates
-- Add `posX = 0`, `posZ = 0`, `MOVE_SPEED = 8`
-- Up/Down arrows: compute `dx = sin(yaw)*speed*dt`, `dz = cos(yaw)*speed*dt`
+- `createPlayer(camera, getHeightAt, treePositions, mountainObstacles)` — fourth param added
+- Checks `isBlockedByTree` against both `treePositions` and `mountainObstacles`
 - World boundary clamp: `±240`
-- Tree collision: if `distance(newX, newZ, tree.x, tree.z) < COLLISION_RADIUS + tree.radius` → reject move
-- Signature becomes `createPlayer(camera, getHeightAt, treePositions)`
 ```ts
 // Pure exported helpers (testable without Three.js):
 export function computeMovementDelta(yaw: number, speed: number, dt: number): { dx: number; dz: number }
@@ -284,11 +284,10 @@ git add . && git commit -m "Phase 1: trees, forward/back movement, tree collisio
 **New files:** `src/atmosphere.ts` (pending), `src/props.ts` ✅ done  
 **Modified files:** `src/scene.ts` (update light/fog colors), `src/terrain.ts` (darker ground color)
 
-### `src/props.ts` ✅ COMPLETE (included in commit 5992b2b + fixes)
-All props use InstancedMesh (3 draw calls regardless of count).
-- **200 rocks**: `DodecahedronGeometry(0.7, 0)`, 3 grey tones (`0x5a5a58`, `0x6a6860`, `0x4e5052`), random tilt, some flattened on Y
-- **250 bushes**: `IcosahedronGeometry(1.0, 1)`, 4 dark green colors, centered at `groundY` (bottom half buried so dome visible above ground), XZ 1.1–1.5x scale, Y 0.7x
-- **600 grass tufts**: crossed-plane `BufferGeometry` (two intersecting quads, `DoubleSide`), 3 green variants
+### `src/props.ts` ✅ COMPLETE
+All props use InstancedMesh. Accepts `mountainObstacles` to keep props out of mountain bases.
+- **200 small/medium rocks** (scale 0.3–1.4) + **45 large boulders** (scale 1.5–3.5): `DodecahedronGeometry(0.7, 0)`, dome-based — center positioned below groundY so only the upper dome is visible
+- **250 main bushes** (scale 0.6–1.4) + **400 small ground-cover shrubs** (scale 0.2–0.55): `IcosahedronGeometry(1.0, 1)`, dome-based with varied XZ/Y ratios per instance for natural irregular shape. Grass tufts (crossed planes) removed — replaced by these ground-cover shrubs.
 
 ### `src/atmosphere.ts` — PENDING
 - Encapsulates all dusk-specific settings as named constants (easy to tweak)

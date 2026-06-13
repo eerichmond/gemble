@@ -1,8 +1,15 @@
 import * as THREE from 'three';
 
+export interface CircleObstacle {
+  x: number;
+  z: number;
+  radius: number;
+}
+
 export interface TerrainResult {
   mesh: THREE.Mesh;
   getHeightAt: (x: number, z: number) => number;
+  mountainObstacles: CircleObstacle[];
 }
 
 // Pure function — exported for unit testing without needing a WebGL context.
@@ -50,18 +57,17 @@ export function createTerrain(scene: THREE.Scene): TerrainResult {
     origin.set(x, 200, z);
     raycaster.set(origin, down);
     const hits = raycaster.intersectObject(mesh);
-    return hits.length > 0 ? hits[0]!.point.y : 0;
+    return hits.length > 0 ? hits[0].point.y : 0;
   }
 
-  // Add mountain silhouettes grounded to terrain surface
-  addMountains(scene, getHeightAt);
+  const mountainObstacles = addMountains(scene, getHeightAt);
 
-  return { mesh, getHeightAt };
+  return { mesh, getHeightAt, mountainObstacles };
 }
 
 type HeightFn = (x: number, z: number) => number;
 
-function addMountains(scene: THREE.Scene, getHeightAt: HeightFn): void {
+function addMountains(scene: THREE.Scene, getHeightAt: HeightFn): CircleObstacle[] {
   // Mountains at radius 225-245: near the terrain edge (±250) so they appear
   // deep in the distance. Light blue-grey color blends with fog at that range.
   // FUTURE Phase 2: material color updated to dark purple silhouette 0x150d25
@@ -69,6 +75,9 @@ function addMountains(scene: THREE.Scene, getHeightAt: HeightFn): void {
 
   const angles = [15, 55, 100, 145, 200, 240, 290, 335];
   const radii = [235, 240, 228, 242, 238, 230, 244, 236];
+  // Collision radius covers the full cone base of each group (peaks offset ≤25 + cone radius ≤72)
+  const MOUNTAIN_RADIUS = 80;
+  const obstacles: CircleObstacle[] = [];
 
   angles.forEach((angleDeg, i) => {
     const angle = (angleDeg * Math.PI) / 180;
@@ -76,6 +85,9 @@ function addMountains(scene: THREE.Scene, getHeightAt: HeightFn): void {
     const cx = Math.sin(angle) * radius;
     const cz = Math.cos(angle) * radius;
     const groundY = getHeightAt(cx, cz);
+
+    // Collision circle per group center (covers all 3 peaks in the cluster)
+    obstacles.push({ x: cx, z: cz, radius: MOUNTAIN_RADIUS });
 
     // Each group: 2–3 overlapping cones of varying height for a ridge silhouette
     const peaks: [number, number, number][] = [
@@ -92,4 +104,6 @@ function addMountains(scene: THREE.Scene, getHeightAt: HeightFn): void {
       scene.add(cone);
     });
   });
+
+  return obstacles;
 }

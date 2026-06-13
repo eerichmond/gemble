@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { isKeyDown } from './input';
 import type { TreePosition } from './trees';
+import type { CircleObstacle } from './terrain';
 
 const TURN_SPEED = 1.8; // radians per second
 const MOVE_SPEED = 8; // units per second
@@ -55,6 +56,7 @@ export function createPlayer(
   camera: THREE.PerspectiveCamera,
   getHeightAt: (x: number, z: number) => number,
   treePositions: TreePosition[] = [],
+  mountainObstacles: CircleObstacle[] = [],
 ): PlayerResult {
   let yaw = 0;
   let posX = 0;
@@ -81,8 +83,11 @@ export function createPlayer(
       newX = clamped.x;
       newZ = clamped.z;
 
-      // Tree collision — only update position if the candidate is clear
-      if (!isBlockedByTree(newX, newZ, treePositions, COLLISION_RADIUS)) {
+      // Tree and mountain collision — only update position if the candidate is clear
+      if (
+        !isBlockedByTree(newX, newZ, treePositions, COLLISION_RADIUS) &&
+        !isBlockedByTree(newX, newZ, mountainObstacles, COLLISION_RADIUS)
+      ) {
         posX = newX;
         posZ = newZ;
       }

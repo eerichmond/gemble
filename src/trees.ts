@@ -11,7 +11,6 @@ export interface TreesResult {
 }
 
 // Seeded pseudo-random for deterministic tree placement across hot-reloads.
-// Using a simple LCG so the forest layout is always identical.
 function makeRng(seed: number): () => number {
   let s = seed;
   return () => {
@@ -20,89 +19,162 @@ function makeRng(seed: number): () => number {
   };
 }
 
+const PINE_COUNT = 480; // ~80% of forest
+const DECIDUOUS_COUNT = 120; // ~20% — scattered broadleaf trees
+const SPAWN_CLEAR = 20; // no trees within 20 units of spawn
+// FUTURE Phase 4: also exclude city bounding box [-60,60] × [-260,-380]
+
 export function createTrees(
   scene: THREE.Scene,
   getHeightAt: (x: number, z: number) => number,
 ): TreesResult {
   const rng = makeRng(42);
   const treePositions: TreePosition[] = [];
+  const dummy = new THREE.Object3D();
 
-  // --- Shared materials (one instance per material across all trees) ---
+  placePines(scene, getHeightAt, rng, dummy, treePositions);
+  placeDeciduousTrees(scene, getHeightAt, rng, dummy, treePositions);
+
+  return { treePositions };
+}
+
+// ---- Pine trees (cone-layered silhouette) --------------------------------
+
+function placePines(
+  scene: THREE.Scene,
+  getHeightAt: (x: number, z: number) => number,
+  rng: () => number,
+  dummy: THREE.Object3D,
+  out: TreePosition[],
+): void {
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x3d2005 });
-  // Three canopy tiers: slightly different greens give the layered pine look
   const canopyMats = [
     new THREE.MeshLambertMaterial({ color: 0x0d2e0d }),
     new THREE.MeshLambertMaterial({ color: 0x0f3a0f }),
     new THREE.MeshLambertMaterial({ color: 0x122e12 }),
   ];
 
-  // --- Shared base geometries (scaled per instance via dummy Object3D) ---
   const trunkGeo = new THREE.CylinderGeometry(0.15, 0.25, 2, 6);
   const canopyGeos = [
-    new THREE.ConeGeometry(2.5, 4, 7), // bottom — widest
-    new THREE.ConeGeometry(1.8, 3.5, 7), // middle
-    new THREE.ConeGeometry(1.1, 3, 7), // top — narrowest
+    new THREE.ConeGeometry(2.5, 4, 7),
+    new THREE.ConeGeometry(1.8, 3.5, 7),
+    new THREE.ConeGeometry(1.1, 3, 7),
   ];
 
-  // --- InstancedMeshes: 4 draw calls total regardless of tree count ---
-  const COUNT = 600;
-  const trunkMesh = new THREE.InstancedMesh(trunkGeo, trunkMat, COUNT);
-  const canopy0 = new THREE.InstancedMesh(canopyGeos[0]!, canopyMats[0]!, COUNT);
-  const canopy1 = new THREE.InstancedMesh(canopyGeos[1]!, canopyMats[1]!, COUNT);
-  const canopy2 = new THREE.InstancedMesh(canopyGeos[2]!, canopyMats[2]!, COUNT);
-
-  [trunkMesh, canopy0, canopy1, canopy2].forEach(m => {
+  // 4 draw calls total for all pine instances
+  const trunk = new THREE.InstancedMesh(trunkGeo, trunkMat, PINE_COUNT);
+  const c0 = new THREE.InstancedMesh(canopyGeos[0]!, canopyMats[0]!, PINE_COUNT);
+  const c1 = new THREE.InstancedMesh(canopyGeos[1]!, canopyMats[1]!, PINE_COUNT);
+  const c2 = new THREE.InstancedMesh(canopyGeos[2]!, canopyMats[2]!, PINE_COUNT);
+  [trunk, c0, c1, c2].forEach(m => {
     m.castShadow = true;
-    m.receiveShadow = false; // trees don't need to receive shadows from each other
     scene.add(m);
   });
 
-  const dummy = new THREE.Object3D();
-  const SPAWN_CLEAR = 20; // keep trees away from the player spawn point
-  // FUTURE Phase 4: also exclude city bounding box [-60,60] × [-260,-380]
-
-  for (let i = 0; i < COUNT; i++) {
-    let x: number, z: number;
-    // Reject positions too close to spawn — give the player room to orient
-    do {
-      x = (rng() - 0.5) * 440; // spread across [-220, 220]
-      z = (rng() - 0.5) * 440;
-    } while (Math.sqrt(x * x + z * z) < SPAWN_CLEAR);
-
+  for (let i = 0; i < PINE_COUNT; i++) {
+    const { x, z } = randomWorldPos(rng, SPAWN_CLEAR);
     const groundY = getHeightAt(x, z);
-    // Scale 2.0–3.5: at player height 1.7 units (~5.5 ft), this gives trees
-    // roughly 30–50 ft tall — towering pines that make the player feel small.
+    // 2.0–3.5x scale → ~30–50 ft at game scale (player eye = 1.7 units ≈ 5.5 ft)
     const scale = 2.0 + rng() * 1.5;
     const yaw = rng() * Math.PI * 2;
 
-    treePositions.push({ x, z, radius: 2.5 * scale });
+    out.push({ x, z, radius: 2.5 * scale });
 
-    // Trunk — centered at ground + 1 unit (half trunk height = 1)
-    dummy.position.set(x, groundY + 1 * scale, z);
     dummy.rotation.set(0, yaw, 0);
     dummy.scale.setScalar(scale);
-    dummy.updateMatrix();
-    trunkMesh.setMatrixAt(i, dummy.matrix);
 
-    // Bottom canopy — sits just above trunk base, cone center at mid-height
-    dummy.position.set(x, groundY + 2 * scale + 2 * scale, z);
+    dummy.position.set(x, groundY + scale, z);
     dummy.updateMatrix();
-    canopy0.setMatrixAt(i, dummy.matrix);
+    trunk.setMatrixAt(i, dummy.matrix);
 
-    // Middle canopy — overlaps bottom by ~1 unit
-    dummy.position.set(x, groundY + 2 * scale + 3.5 * scale, z);
+    dummy.position.set(x, groundY + 4 * scale, z);
     dummy.updateMatrix();
-    canopy1.setMatrixAt(i, dummy.matrix);
+    c0.setMatrixAt(i, dummy.matrix);
 
-    // Top canopy
-    dummy.position.set(x, groundY + 2 * scale + 5 * scale, z);
+    dummy.position.set(x, groundY + 5.5 * scale, z);
     dummy.updateMatrix();
-    canopy2.setMatrixAt(i, dummy.matrix);
+    c1.setMatrixAt(i, dummy.matrix);
+
+    dummy.position.set(x, groundY + 7 * scale, z);
+    dummy.updateMatrix();
+    c2.setMatrixAt(i, dummy.matrix);
   }
 
-  [trunkMesh, canopy0, canopy1, canopy2].forEach(m => {
-    m.instanceMatrix.needsUpdate = true;
+  [trunk, c0, c1, c2].forEach(m => (m.instanceMatrix.needsUpdate = true));
+}
+
+// ---- Deciduous trees (rounded icosahedron canopy) ------------------------
+
+// Deciduous canopy colors: brighter, more varied greens than pine
+const DECIDUOUS_CANOPY_COLORS = [0x2d7a1a, 0x3a8a1e, 0x237010, 0x4a8a22, 0x1e6a14];
+
+function placeDeciduousTrees(
+  scene: THREE.Scene,
+  getHeightAt: (x: number, z: number) => number,
+  rng: () => number,
+  dummy: THREE.Object3D,
+  out: TreePosition[],
+): void {
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x5c3a10 });
+
+  // IcosahedronGeometry detail=1 gives a pleasingly lumpy, organic low-poly blob
+  const trunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 2, 6);
+  const canopyGeo = new THREE.IcosahedronGeometry(1, 1);
+
+  const trunk = new THREE.InstancedMesh(trunkGeo, trunkMat, DECIDUOUS_COUNT);
+  trunk.castShadow = true;
+  scene.add(trunk);
+
+  // One InstancedMesh per canopy color so each tree can have its own shade
+  // Split evenly across 5 color variants
+  const perColor = Math.ceil(DECIDUOUS_COUNT / DECIDUOUS_CANOPY_COLORS.length);
+  const canopyMeshes = DECIDUOUS_CANOPY_COLORS.map(color => {
+    const mat = new THREE.MeshLambertMaterial({ color });
+    const mesh = new THREE.InstancedMesh(canopyGeo, mat, perColor);
+    mesh.castShadow = true;
+    scene.add(mesh);
+    return mesh;
   });
 
-  return { treePositions };
+  for (let i = 0; i < DECIDUOUS_COUNT; i++) {
+    const { x, z } = randomWorldPos(rng, SPAWN_CLEAR);
+    const groundY = getHeightAt(x, z);
+    // Deciduous trees slightly smaller than pines: 1.8–3.0x scale
+    const scale = 1.8 + rng() * 1.2;
+    const yaw = rng() * Math.PI * 2;
+
+    out.push({ x, z, radius: 2.2 * scale });
+
+    dummy.rotation.set(0, yaw, 0);
+    dummy.scale.setScalar(scale);
+
+    // Trunk
+    dummy.position.set(x, groundY + scale, z);
+    dummy.updateMatrix();
+    trunk.setMatrixAt(i, dummy.matrix);
+
+    // Canopy — stretched slightly on XZ for a wider, rounder broadleaf look
+    const colorIdx = i % DECIDUOUS_CANOPY_COLORS.length;
+    const instanceIdx = Math.floor(i / DECIDUOUS_CANOPY_COLORS.length);
+    dummy.position.set(x, groundY + 3.5 * scale, z);
+    dummy.scale.set(scale * 1.6, scale * 1.2, scale * 1.6); // wider than tall
+    dummy.updateMatrix();
+    canopyMeshes[colorIdx]!.setMatrixAt(instanceIdx, dummy.matrix);
+    // Reset scale for next trunk placement
+    dummy.scale.setScalar(scale);
+  }
+
+  trunk.instanceMatrix.needsUpdate = true;
+  canopyMeshes.forEach(m => (m.instanceMatrix.needsUpdate = true));
+}
+
+// ---- Shared helpers -------------------------------------------------------
+
+function randomWorldPos(rng: () => number, minRadius: number): { x: number; z: number } {
+  let x: number, z: number;
+  do {
+    x = (rng() - 0.5) * 440;
+    z = (rng() - 0.5) * 440;
+  } while (Math.sqrt(x * x + z * z) < minRadius);
+  return { x, z };
 }

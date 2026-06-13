@@ -3,6 +3,7 @@ import Stats from 'stats.js';
 import { initScene, onResize } from './scene';
 import { createTerrain } from './terrain';
 import { createTrees } from './trees';
+import { createProps } from './props';
 import { createPlayer } from './player';
 import { initInput } from './input';
 // FUTURE Phase 2: import { applyDuskAtmosphere } from './atmosphere';
@@ -21,6 +22,7 @@ initInput();
 
 const { getHeightAt } = createTerrain(scene);
 const { treePositions } = createTrees(scene, getHeightAt);
+createProps(scene, getHeightAt);
 const { update: updatePlayer } = createPlayer(camera, getHeightAt, treePositions);
 // FUTURE Phase 4: const { collisionBoxes, update: updateCity } = createCity(scene, getHeightAt);
 // FUTURE Phase 4: const { update: updateGem } = createGem(scene, getHeightAt);

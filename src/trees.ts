@@ -44,8 +44,8 @@ export function createTrees(
     new THREE.ConeGeometry(1.1, 3, 7), // top — narrowest
   ];
 
-  // --- InstancedMeshes: 4 draw calls total for all 400 trees ---
-  const COUNT = 400;
+  // --- InstancedMeshes: 4 draw calls total regardless of tree count ---
+  const COUNT = 600;
   const trunkMesh = new THREE.InstancedMesh(trunkGeo, trunkMat, COUNT);
   const canopy0 = new THREE.InstancedMesh(canopyGeos[0]!, canopyMats[0]!, COUNT);
   const canopy1 = new THREE.InstancedMesh(canopyGeos[1]!, canopyMats[1]!, COUNT);
@@ -70,7 +70,9 @@ export function createTrees(
     } while (Math.sqrt(x * x + z * z) < SPAWN_CLEAR);
 
     const groundY = getHeightAt(x, z);
-    const scale = 0.7 + rng() * 0.6; // 0.7–1.3x size variation
+    // Scale 2.0–3.5: at player height 1.7 units (~5.5 ft), this gives trees
+    // roughly 30–50 ft tall — towering pines that make the player feel small.
+    const scale = 2.0 + rng() * 1.5;
     const yaw = rng() * Math.PI * 2;
 
     treePositions.push({ x, z, radius: 2.5 * scale });

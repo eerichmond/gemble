@@ -14,7 +14,9 @@ export function initScene(canvas: HTMLCanvasElement): SceneResult {
 
   // Phase 0: plain daylight sky — replaced with dusk purple in Phase 2
   scene.background = new THREE.Color(0x87ceeb);
-  // FUTURE Phase 2: replace background + add FogExp2(0x1a1228, 0.018) for dusk atmosphere
+  // Light haze softens the terrain edge at the horizon; density 0.004 fades at ~300 units.
+  // FUTURE Phase 2: replace with FogExp2(0x1a1228, 0.018) for dusk atmosphere
+  scene.fog = new THREE.FogExp2(0x87ceeb, 0.004);
 
   renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
   renderer.setSize(window.innerWidth, window.innerHeight);

@@ -6,14 +6,14 @@ export interface TerrainResult {
 }
 
 // Pure function — exported for unit testing without needing a WebGL context.
-// Layered sine/cosine gives ~±20 units of elevation variation (gentle rolling hills).
+// Layered sine/cosine gives ~±29 units of elevation variation (dramatic rolling hills).
 // FUTURE: swap this for simplex-noise in Phase 2+ for richer, less repetitive terrain.
 export function computeTerrainHeight(x: number, z: number): number {
   return (
-    Math.sin(x * 0.015) * 8 +
-    Math.cos(z * 0.018) * 7 +
-    Math.sin(x * 0.05 + z * 0.04) * 3 +
-    Math.cos(x * 0.09) * Math.sin(z * 0.08) * 2
+    Math.sin(x * 0.015) * 12 +
+    Math.cos(z * 0.018) * 10 +
+    Math.sin(x * 0.05 + z * 0.04) * 4 +
+    Math.cos(x * 0.09) * Math.sin(z * 0.08) * 3
   );
 }
 
@@ -53,39 +53,38 @@ export function createTerrain(scene: THREE.Scene): TerrainResult {
     return hits.length > 0 ? hits[0]!.point.y : 0;
   }
 
-  // Add distant mountain silhouettes — visual only, no collision needed
-  addMountains(scene);
+  // Add mountain silhouettes grounded to terrain surface
+  addMountains(scene, getHeightAt);
 
   return { mesh, getHeightAt };
 }
 
-function addMountains(scene: THREE.Scene): void {
-  // 8 mountain groups placed at radius 380–440, spread around the horizon
+type HeightFn = (x: number, z: number) => number;
+
+function addMountains(scene: THREE.Scene, getHeightAt: HeightFn): void {
+  // Mountains placed at radius 160-220 — inside the terrain boundary (±250).
+  // Each cone is buried ~35% underground so peaks emerge naturally from hills.
+  // FUTURE Phase 2: material color updated to dark purple silhouette 0x150d25
   const material = new THREE.MeshLambertMaterial({ color: 0x8a9a9a });
 
-  const positions: [number, number, number, number][] = [
-    // [angle degrees, radius, xOffset, zOffset from center of group]
-    [15, 400, 0, 0],
-    [55, 420, 0, 0],
-    [100, 390, 0, 0],
-    [145, 410, 0, 0],
-    [200, 430, 0, 0],
-    [240, 400, 0, 0],
-    [290, 420, 0, 0],
-    [335, 410, 0, 0],
-  ];
+  const angles = [15, 55, 100, 145, 200, 240, 290, 335];
+  const radii  = [180, 200, 175, 190, 210, 185, 195, 200];
 
-  positions.forEach(([angleDeg, radius]) => {
+  angles.forEach((angleDeg, i) => {
     const angle = (angleDeg * Math.PI) / 180;
+    const radius = radii[i] ?? 190;
     const cx = Math.sin(angle) * radius;
     const cz = Math.cos(angle) * radius;
+    const groundY = getHeightAt(cx, cz);
 
-    // Each mountain group = 2-3 overlapping cones of varying height
-    [[0, 0, 120], [-25, 15, 90], [20, -10, 100]].forEach(([dx, dz, height]) => {
-      const geo = new THREE.ConeGeometry(55 + Math.random() * 20, height ?? 100, 5);
+    // Each group: 2–3 overlapping cones of varying height for a ridge silhouette
+    const peaks: [number, number, number][] = [[0, 0, 110], [-22, 12, 80], [18, -8, 95]];
+    peaks.forEach(([dx, dz, height]) => {
+      const geo = new THREE.ConeGeometry(48 + Math.random() * 18, height, 5);
       const cone = new THREE.Mesh(geo, material);
-      cone.position.set(cx + (dx ?? 0), (height ?? 100) / 2 - 10, cz + (dz ?? 0));
-      cone.castShadow = false; // distant — no shadow needed
+      // Center cone at groundY + half its height, then bury base 35% underground
+      cone.position.set(cx + dx, groundY + height * 0.15, cz + dz);
+      cone.castShadow = false;
       scene.add(cone);
     });
   });

@@ -68,12 +68,15 @@ Run `yarn typecheck && yarn lint && yarn test:run` before committing.
 ```
 src/
   main.ts           # entry point — creates renderer, scene, game loop
-  game/             # game logic (state machine, rules, win conditions)
-  scene/            # Three.js scene setup (camera, lights, renderer)
-  entities/         # game objects (player, enemies, props, etc.)
-  ui/               # HUD, menus, overlays (HTML/CSS over the canvas)
-  assets/           # loaders for models, textures, audio
-  utils/            # math helpers, input handling, timing
+  scene.ts          # renderer, camera, lights, fog, clouds
+  terrain.ts        # mesh + getHeightAt() + mountain obstacles
+  terrain.test.ts   # unit tests for pure terrain helpers
+  trees.ts          # instanced pines + deciduous trees
+  props.ts          # rocks, boulders, bushes, ground cover
+  player.ts         # camera movement + collision
+  player.test.ts    # unit tests for pure player helpers
+  input.ts          # keyboard state
+  temp/             # gitignored scratch output (screenshots, debug scripts)
 public/
   assets/           # static assets (textures, models, audio files)
 .claude/
@@ -94,15 +97,20 @@ Use a single `requestAnimationFrame` loop owned by `main.ts`. Pass a `delta` (se
 
 ## Plans workflow
 
-Plans live in `.claude/plans/` permanently — they are not deleted after a feature ships. They serve as a log of design decisions and why things were built a certain way.
+`game-overview.md` is a **living document** — it must always reflect the current state of the game. Read it before starting any work, and update it after any significant change.
 
 Before implementing any non-trivial feature:
-1. Read all existing plans in `.claude/plans/` to understand prior decisions and avoid conflicts.
-2. Write a plan doc at `.claude/plans/<feature-name>.md` covering: goal, approach, key decisions, and open questions.
-3. Implement the feature.
-4. Update the plan with a short "Outcome" section noting what changed from the original plan and why.
+1. Read `game-overview.md` in full to understand current state, prior decisions, and what's next.
+2. Implement the feature.
+3. **Update `game-overview.md` immediately after** — before committing. This includes:
+   - Marking a phase or sub-item ✅ COMPLETE with a commit hash
+   - Correcting any implementation notes that diverged from the plan (geometry, colors, collision, file structure)
+   - Removing or striking through anything that's no longer accurate
+   - Adding a brief note explaining *why* something changed if it wasn't obvious from the plan
 
-Never delete a plan file. Mark completed plans with a `## Status: complete` heading at the top.
+The plan is the source of truth for what's in the game. A stale plan is worse than no plan — if the plan says "sky is blue" but the sky is now navy, fix the plan.
+
+For one-off feature plan files (not `game-overview.md`), mark them complete with `## Status: complete` at the top and keep them for reference.
 
 ## What to build next
 

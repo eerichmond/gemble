@@ -76,15 +76,14 @@ function createGroundTexture(): THREE.CanvasTexture {
   ctx.fillStyle = '#4a7c3f';
   ctx.fillRect(0, 0, size, size);
 
-  // Large-ish color patches — darker green clumps and occasional dirt
-  for (let i = 0; i < 35; i++) {
+  // Dark-green clumps
+  for (let i = 0; i < 28; i++) {
     const px = Math.random() * size;
     const py = Math.random() * size;
     const rx = 18 + Math.random() * 55;
     const ry = 12 + Math.random() * 38;
-    const isDirt = Math.random() < 0.12;
     ctx.globalAlpha = 0.14 + Math.random() * 0.2;
-    ctx.fillStyle = isDirt ? '#7a5828' : Math.random() < 0.5 ? '#2d5a1e' : '#5a8a38';
+    ctx.fillStyle = Math.random() < 0.5 ? '#2d5a1e' : '#5a8a38';
     ctx.beginPath();
     ctx.ellipse(px, py, rx, ry, Math.random() * Math.PI, 0, Math.PI * 2);
     ctx.fill();
@@ -121,7 +120,7 @@ function addMountains(scene: THREE.Scene, getHeightAt: HeightFn): CircleObstacle
   // Mountains at radius 225-245: near the terrain edge (±250) so they appear
   // deep in the distance. Light blue-grey color blends with fog at that range.
   // FUTURE Phase 2: material color updated to dark purple silhouette 0x150d25
-  const material = new THREE.MeshLambertMaterial({ color: 0xb0c4cc });
+  const material = new THREE.MeshLambertMaterial({ color: 0x2a3a4a });
 
   const angles = [15, 55, 100, 145, 200, 240, 290, 335];
   const radii = [235, 240, 228, 242, 238, 230, 244, 236];

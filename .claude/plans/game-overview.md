@@ -55,17 +55,20 @@ gemble/
 ├── tsconfig.json
 ├── vite.config.ts
 └── src/
-    ├── main.ts         # entry: wires modules, game loop
-    ├── scene.ts        # renderer, camera, lights, fog
-    ├── terrain.ts      # mesh + getHeightAt()
-    ├── trees.ts        # instanced pines             [Phase 1]
-    ├── atmosphere.ts   # dusk lighting, fog tuning    [Phase 2]
-    ├── props.ts        # rocks, grass tufts           [Phase 2]
-    ├── road.ts         # asphalt road                 [Phase 3]
-    ├── city.ts         # buildings, parking, props    [Phase 4]
-    ├── gem.ts          # gem geometry + animation     [Phase 4]
-    ├── player.ts       # camera movement + collision  [Phase 1]
-    └── input.ts        # keyboard state               [Phase 0]
+    ├── main.ts              # entry: wires modules, game loop
+    ├── scene.ts             # renderer, camera, lights, fog, clouds  [Phase 0, updated P1+]
+    ├── terrain.ts           # mesh + getHeightAt() + mountain obstacles  [Phase 0, updated P1]
+    ├── terrain.test.ts      # unit tests — computeTerrainHeight  [Phase 1]
+    ├── trees.ts             # 480 pines + 120 deciduous  [Phase 1]
+    ├── props.ts             # rocks, boulders, bushes  [Phase 2]
+    ├── player.ts            # camera movement + collision  [Phase 1]
+    ├── player.test.ts       # unit tests — movement, collision, clamp  [Phase 1]
+    ├── input.ts             # keyboard state  [Phase 0]
+    ├── road.ts              # asphalt road  [Phase 3 — not yet built]
+    ├── city.ts              # buildings, parking, props  [Phase 4 — not yet built]
+    ├── gem.ts               # gem geometry + animation  [Phase 4 — not yet built]
+    ├── birds.ts             # crows that startle on approach  [Phase 5 — not yet built]
+    └── chests.ts            # treasure chests, Space to open  [Phase 6 — not yet built]
 ```
 
 ---
@@ -223,7 +226,7 @@ git add . && git commit -m "Phase 0: terrain, mountains, sky, camera rotation"
   - Previous value of `2.5*scale` / `2.2*scale` blocked at canopy edge — incorrect
 - Pure helpers (`computeMovementDelta`, `isBlockedByTree`, `clampToWorld`) exported from `player.ts` for later Vitest unit tests
 - Mountains pushed to radius 225–245, lightened to `0xb0c4cc` for atmospheric distance
-- **Mountain collision**: `terrain.ts` exports `mountainObstacles: CircleObstacle[]` — **24 per-peak obstacles** (8 groups × 3 peaks, radius 56 each). Per-peak matches the visible cone base; original per-group radius 80 was too wide and blocked the player far from the mountain.
+- **Mountain collision**: `terrain.ts` exports `mountainObstacles: CircleObstacle[]` — **24 per-peak obstacles** (8 groups × 3 peaks, `PEAK_RADIUS = 37`). Cones are buried 40% underground, so visible cross-section at ground = `base_radius × 0.6 ≈ 31–43 units`; 37 is the average and stops the player right at the cone surface. Previous values: 80 (per-group, too wide) → 56 (per-peak, still wide) → 37 (correct).
 - **Mountain tree exclusion**: trees and props use `excludeZones` in their placement loops so nothing spawns inside mountain bases
 - `computeMovementDelta` uses `-sin/-cos` for forward direction (camera looks down -Z; `+sin/+cos` was backwards)
 
@@ -235,6 +238,13 @@ git add . && git commit -m "Phase 0: terrain, mountains, sky, camera rotation"
   - 200 small/medium rocks + 45 large boulders: `DodecahedronGeometry(0.7, 0)`, dome-based (center positioned below groundY so only upper dome is visible). Large boulders scale 1.5–3.5x.
   - 250 main bushes + 400 small ground-cover shrubs: `IcosahedronGeometry(1.0, 1)`, dome-based (center near groundY, varied XZ/Y ratios for natural look). Replaced crossed-plane grass tufts.
 
+**Nighttime scene (applied ahead of Phase 2 atmosphere — partial):**
+- `scene.background = new THREE.Color(0x1a2a4a)` — dark navy night sky
+- `scene.fog = new THREE.FogExp2(0x1a2a4a, 0.004)` — matching fog color
+- `AmbientLight(0x9aaec8, 0.5)` — cool blue-grey moonlight fill
+- `DirectionalLight(0xd0ddf0, 0.85)` (named `moon`) — cool white directional light
+- 4 cloud groups added via `addClouds()` in `scene.ts`: `IcosahedronGeometry(1,1)` blobs, flat-scaled wide, color `0xc8d4e8` (moonlit blue-grey), y=142–152
+
 ### `src/trees.ts`
 - 480 pines + 120 deciduous using InstancedMesh (10 draw calls total)
 - Both types: trunk-only collision radius (see above)
@@ -243,9 +253,9 @@ git add . && git commit -m "Phase 0: terrain, mountains, sky, camera rotation"
 
 ### `src/terrain.ts`
 - Exports `CircleObstacle { x, z, radius }` interface
-- `createTerrain` returns `mountainObstacles: CircleObstacle[]` — 24 circles (one per individual peak, radius 56)
+- `createTerrain` returns `mountainObstacles: CircleObstacle[]` — 24 circles (one per individual peak, `PEAK_RADIUS = 37`)
 - Passed to `createTrees`, `createProps`, and `createPlayer` in `main.ts`
-- Ground: procedural `CanvasTexture` (512×512, tiled 24×24) with grass blade strokes and irregular dirt/green patches. No external image assets needed. Material `color: 0x6a9a58` tints texture toward forest green under cool moonlight.
+- Ground: procedural `CanvasTexture` (512×512, tiled 24×24) with grass blade strokes and 28 irregular green ellipse patches. No external image assets needed. Material `color: 0x6a9a58` tints texture toward forest green under cool moonlight.
 
 ### `src/player.ts` updates
 - `createPlayer(camera, getHeightAt, treePositions, mountainObstacles)` — fourth param added

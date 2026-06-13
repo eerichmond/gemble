@@ -19,9 +19,10 @@ export function computeMovementDelta(
   speed: number,
   dt: number,
 ): { dx: number; dz: number } {
+  // Camera looks down -Z; forward in world space is (-sin(yaw), -cos(yaw))
   return {
-    dx: Math.sin(yaw) * speed * dt,
-    dz: Math.cos(yaw) * speed * dt,
+    dx: -Math.sin(yaw) * speed * dt,
+    dz: -Math.cos(yaw) * speed * dt,
   };
 }
 

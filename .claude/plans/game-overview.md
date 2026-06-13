@@ -70,7 +70,7 @@ gemble/
 
 ---
 
-## Phase 0 — Environment Skeleton (Just Land + Sky + Look Around)
+## Phase 0 — Environment Skeleton ✅ COMPLETE (commit eab24c6)
 
 **Goal:** Open `localhost:5173` and see terrain, hills, distant mountains, a sky, and be able to rotate the camera with arrow keys. No forward movement yet. No trees.
 
@@ -84,6 +84,16 @@ gemble/
 - `stats.js` FPS counter
 
 **What's out of scope:** movement, trees, fog, dusk colors, buildings, gem
+
+**Implementation notes:**
+- Project was already scaffolded with Yarn 4 (not npm) — all commands use `yarn` instead of `npm`
+- `@types/three` was already in devDependencies (Three.js r150+ ships its own types — both coexist fine)
+- Mountains implemented as groups of 2–3 overlapping cones per position, placed in `terrain.ts`
+- `canvas id="canvas"` added to `index.html`; renderer uses existing canvas element (not `document.body.appendChild`)
+- Arrow keys preventDefault'd in `input.ts` to stop page scrolling
+- **Polish (commit 341c3b1):** Mountains moved from radius 380–440 (outside terrain ±250 boundary) to 160–220 (inside terrain); bases buried 35% underground so peaks emerge naturally. Hill amplitude increased from ±20 to ±29 units. Light `FogExp2(0x87ceeb, 0.004)` added to soften horizon.
+- stats.js is a JS library with `@types/stats.js` — usage in TypeScript is standard; no change needed
+- Verified: 120fps, dramatic rolling hills, mountains grounded in terrain, horizon haze working
 
 ### Files to create in Phase 0
 
@@ -196,18 +206,36 @@ git add . && git commit -m "Phase 0: terrain, mountains, sky, camera rotation"
 
 ---
 
-## Phase 1 — Trees + Forward Movement
+## Phase 1 — Trees + Forward Movement ✅ COMPLETE (commits 915d2a5, 6511d99)
 
 **Goal:** Walk through a forest. Arrow Up/Down moves forward/back. Trees fill the world. Player can't walk through trees.
 
 **New files:** `src/trees.ts`  
 **Modified files:** `src/player.ts` (add movement + tree collision), `src/main.ts` (wire trees)
 
+**Implementation notes:**
+- Seeded LCG RNG in `trees.ts` gives deterministic tree placement across hot-reloads
+- Tree scale adjusted to 2.0–3.5x after visual review — gives ~30–50 ft pines that dwarf the player (1.7 unit eye height ≈ 5.5 ft)
+- Count increased from 400 to 600 for denser canopy coverage
+- Collision radius = `2.5 * scale`, scales with tree size
+- Pure helpers (`computeMovementDelta`, `isBlockedByTree`, `clampToWorld`) exported from `player.ts` for later Vitest unit tests
+- Mountains also pushed to radius 225–245 and lightened to `0xb0c4cc` for better atmospheric distance
+
+**Forest variety additions (commit 5992b2b + fixes):**
+- **480 pines** (unchanged): trunk `CylinderGeometry(0.15, 0.25, 2, 6)` + 3 stacked `ConeGeometry` tiers, scale 2.0–3.5x
+- **120 deciduous trees**: lighter-brown trunk + wide `ConeGeometry(2.0, 4.5, 12)` canopy (12-sided smooth cone = classic broadleaf silhouette). 5 canopy colors. Scale 1.8–3.0x.
+  - Canopy positioned so base sits exactly at trunk top: center = `groundY + 4.25 * scale` (trunk top is at `groundY + 2*scale`, cone half-height = `2.25*scale`)
+  - **Fixed**: original IcosahedronGeometry canopy had a visible gap between trunk top and canopy bottom — replaced with cone geometry that properly connects.
+- **`src/props.ts`** created (seeded RNG 99):
+  - 200 rocks: `DodecahedronGeometry(0.7, 0)`, 3 grey tones, random tilt, flatten some on Y
+  - 250 bushes: `IcosahedronGeometry(1.0, 1)`, 4 dark green colors, centered at `groundY` (bottom half buried) so only the dome is visible — gives half-sphere bush shape. Scale XZ 1.1–1.5x, Y 0.7x.
+  - 600 grass tufts: crossed-plane `BufferGeometry` (two intersecting quads), `DoubleSide`, 3 green variants
+
 ### `src/trees.ts`
-- ~400 trees using InstancedMesh (4 draw calls total regardless of count)
-- Tree = trunk cylinder + 3 stacked cones (different shades of dark green)
+- 480 pines + 120 deciduous using InstancedMesh (10 draw calls total)
+- Pine = trunk cylinder + 3 stacked cones (different shades of dark green)
+- Deciduous = lighter trunk cylinder + wide smooth 12-sided cone canopy (5 color variants, 6 draw calls)
 - Placement: random XZ in `[-220, 220]`, 20-unit clearance at spawn
-- Random scale `0.7–1.3`, random Y rotation
 - Exports `{ treePositions: TreePosition[] }` where `TreePosition = { x, z, radius }`
 - `castShadow = true` on all meshes
 ```ts
@@ -249,14 +277,20 @@ git add . && git commit -m "Phase 1: trees, forward/back movement, tree collisio
 
 ---
 
-## Phase 2 — Atmosphere (Dusk + Rocks + Grass)
+## Phase 2 — Atmosphere (Dusk + Rocks + Grass) — Props ✅ Done, Atmosphere Pending
 
 **Goal:** Transform the neutral daytime scene into the dusk mystery atmosphere. Add ground detail props.
 
-**New files:** `src/atmosphere.ts`, `src/props.ts`  
+**New files:** `src/atmosphere.ts` (pending), `src/props.ts` ✅ done  
 **Modified files:** `src/scene.ts` (update light/fog colors), `src/terrain.ts` (darker ground color)
 
-### `src/atmosphere.ts`
+### `src/props.ts` ✅ COMPLETE (included in commit 5992b2b + fixes)
+All props use InstancedMesh (3 draw calls regardless of count).
+- **200 rocks**: `DodecahedronGeometry(0.7, 0)`, 3 grey tones (`0x5a5a58`, `0x6a6860`, `0x4e5052`), random tilt, some flattened on Y
+- **250 bushes**: `IcosahedronGeometry(1.0, 1)`, 4 dark green colors, centered at `groundY` (bottom half buried so dome visible above ground), XZ 1.1–1.5x scale, Y 0.7x
+- **600 grass tufts**: crossed-plane `BufferGeometry` (two intersecting quads, `DoubleSide`), 3 green variants
+
+### `src/atmosphere.ts` — PENDING
 - Encapsulates all dusk-specific settings as named constants (easy to tweak)
 - Exports `applyDuskAtmosphere(scene, renderer)`:
   - `renderer.setClearColor(0x1a1228)` — deep purple-black sky
@@ -266,21 +300,14 @@ git add . && git commit -m "Phase 1: trees, forward/back movement, tree collisio
   - Adds secondary `DirectionalLight(0x3a2060, 0.3)` from east — cool purple fill, no shadows
 - Terrain material color updated to `0x1a2e12` (near-black dark green)
 
-### `src/props.ts`
-- Rocks: `DodecahedronGeometry(0.6, 0)` (faceted boulder shape), `MeshLambertMaterial({ color: 0x4a4a4a })`. ~80 placed randomly, same exclusion as trees.
-- Grass tufts: flat crossed `PlaneGeometry(0.8, 1.2)` pairs, `MeshLambertMaterial({ color: 0x1a3a10 })`. ~300 instances.
-```ts
-// FUTURE: replace with instanced mesh if props count grows significantly
-// FUTURE: add seasonal variation (frost on rocks)
-```
-
 ### Phase 2 Visual Checklist
+- [x] Rocks scattered on terrain (done)
+- [x] Grass tufts visible near player (done)
+- [x] Bushes visible as low dome shapes (done)
 - [ ] Sky is deep purple-black
 - [ ] Heavy fog — trees beyond ~80 units fade to silhouettes
 - [ ] Orange dusk sun casts long shadows from low angle
 - [ ] Terrain is near-black dark green
-- [ ] Rocks scattered on terrain, casting shadows
-- [ ] Grass tufts visible near player
 - [ ] Still 60fps
 
 ### Phase 2 Tests
@@ -399,6 +426,105 @@ git add . && git commit -m "Phase 4: abandoned city, gem"
 
 ---
 
+## Phase 5 — Birds
+
+**Goal:** A handful of black crows rest on the ground throughout the forest. Walk within ~15 units of one and it startles — wings flap, it lifts off, and flies away. Adds life and atmosphere without requiring detailed art.
+
+**New files:** `src/birds.ts`  
+**Modified files:** `src/main.ts` (wire birds update)
+
+### `src/birds.ts`
+
+**Geometry (per bird — 5 mesh parts, grouped under a `THREE.Group`):**
+
+| Part | Geometry | Material | Notes |
+|---|---|---|---|
+| Body | `SphereGeometry(0.25, 6, 4)` scaled `(1, 0.6, 1.5)` | black | elongated ellipsoid |
+| Head | `SphereGeometry(0.12, 6, 4)` | black | positioned at front-top of body |
+| Beak | `ConeGeometry(0.04, 0.12, 4)` | `0xf0c020` yellow | rotated to point forward from head |
+| Wing L | `BoxGeometry(0.4, 0.04, 0.18)` | black | pivots at body left side |
+| Wing R | `BoxGeometry(0.4, 0.04, 0.18)` | black | pivots at body right side |
+
+Wings are child `Group` nodes so rotation around their root (attachment point) folds/flaps correctly.
+
+**Placement:**
+- 15 birds placed randomly in the forest zone (`[-200, 200]` XZ), same clearance rules as trees
+- Exclude city zone `[-60, 60] × [-260, -380]`
+- Each placed at `getHeightAt(x, z)` — sitting on terrain surface
+
+**Per-bird state machine:**
+
+```ts
+type BirdState = 'resting' | 'startled' | 'flying';
+```
+
+| State | Trigger | Behavior |
+|---|---|---|
+| `resting` | — | wings folded (rotation ≈ 0); optional slow head-bob |
+| `startled` | player within 15 units | rapid wing flap begins; bird lifts vertically ~3 units over 0.5 s |
+| `flying` | after 0.5 s startled | moves in random horizontal direction at 10 units/s; climbs 5 units/s for 2 s then levels off; wing flap continues |
+
+Birds do not return or land — once airborne they fly until ~150 units from spawn, then dispose themselves from the scene.
+
+**Wing flap animation:**
+- Resting: left wing `rotation.z = +0.15`, right `rotation.z = -0.15` (folded in)
+- Flying: sine-wave flap at 4 Hz → `rotation.z = ±(0.6 * sin(time * 4 * 2π))`
+- Startled: same as flying but 6 Hz for the first 0.5 s (panic flap)
+
+**Exports:**
+
+```ts
+export interface Bird {
+  group: THREE.Group;
+  state: BirdState;
+  flightDir: { x: number; z: number };  // normalized, set on startle
+  flightTimer: number;
+  distanceFromSpawn: number;
+}
+
+export function createBirds(
+  scene: THREE.Scene,
+  getHeightAt: (x: number, z: number) => number,
+): { update: (dt: number, playerX: number, playerZ: number) => void }
+```
+
+**Pure helper (testable):**
+
+```ts
+export function shouldStartle(
+  birdX: number, birdZ: number,
+  playerX: number, playerZ: number,
+  radius: number,
+): boolean
+```
+
+### Phase 5 Visual Checklist
+
+- [ ] ~15 black birds visible resting on terrain throughout the forest
+- [ ] Birds have visible yellow beak
+- [ ] Wings visibly folded when resting
+- [ ] Walking within ~15 units triggers flight
+- [ ] Bird lifts off with rapid wing flap (panic flutter)
+- [ ] Bird flies away in a consistent direction, gaining altitude then leveling
+- [ ] Wing flap continues during flight (slower, rhythmic)
+- [ ] Birds dispose cleanly — no ghost meshes after flying away
+- [ ] No fps drop with 15 birds active (well under draw call budget)
+- [ ] Birds do not spawn inside trees or city zone
+
+### Phase 5 Tests (add after visual validation)
+
+```
+src/birds.test.ts — shouldStartle radius math; state transitions
+```
+
+### Phase 5 Commit
+
+```
+feat(birds): resting crows that startle and fly away on approach
+```
+
+---
+
 ## TypeScript Interfaces (shared across modules)
 
 ```ts
@@ -411,6 +537,16 @@ export interface TreePosition { x: number; z: number; radius: number; }
 // city.ts
 export interface BuildingBox { minX: number; maxX: number; minZ: number; maxZ: number; }
 export interface CityResult { collisionBoxes: BuildingBox[]; update: (dt: number) => void; }
+
+// birds.ts
+type BirdState = 'resting' | 'startled' | 'flying';
+export interface Bird {
+  group: THREE.Group;
+  state: BirdState;
+  flightDir: { x: number; z: number };
+  flightTimer: number;
+  distanceFromSpawn: number;
+}
 ```
 
 ---

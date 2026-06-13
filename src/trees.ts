@@ -103,7 +103,7 @@ function placePines(
   [trunk, c0, c1, c2].forEach(m => (m.instanceMatrix.needsUpdate = true));
 }
 
-// ---- Deciduous trees (rounded icosahedron canopy) ------------------------
+// ---- Deciduous trees (wide-cone canopy, classic broadleaf silhouette) ----
 
 // Deciduous canopy colors: brighter, more varied greens than pine
 const DECIDUOUS_CANOPY_COLORS = [0x2d7a1a, 0x3a8a1e, 0x237010, 0x4a8a22, 0x1e6a14];
@@ -117,16 +117,16 @@ function placeDeciduousTrees(
 ): void {
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x5c3a10 });
 
-  // IcosahedronGeometry detail=1 gives a pleasingly lumpy, organic low-poly blob
+  // Wide 12-sided cone reads as a classic rounded broadleaf silhouette,
+  // distinct from the layered pine cones. ConeGeometry(r=2.0, h=4.5, seg=12).
   const trunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 2, 6);
-  const canopyGeo = new THREE.IcosahedronGeometry(1, 1);
+  const canopyGeo = new THREE.ConeGeometry(2.0, 4.5, 12);
 
   const trunk = new THREE.InstancedMesh(trunkGeo, trunkMat, DECIDUOUS_COUNT);
   trunk.castShadow = true;
   scene.add(trunk);
 
   // One InstancedMesh per canopy color so each tree can have its own shade
-  // Split evenly across 5 color variants
   const perColor = Math.ceil(DECIDUOUS_COUNT / DECIDUOUS_CANOPY_COLORS.length);
   const canopyMeshes = DECIDUOUS_CANOPY_COLORS.map(color => {
     const mat = new THREE.MeshLambertMaterial({ color });
@@ -148,19 +148,19 @@ function placeDeciduousTrees(
     dummy.rotation.set(0, yaw, 0);
     dummy.scale.setScalar(scale);
 
-    // Trunk
+    // Trunk: center at groundY + scale → top at groundY + 2*scale
     dummy.position.set(x, groundY + scale, z);
     dummy.updateMatrix();
     trunk.setMatrixAt(i, dummy.matrix);
 
-    // Canopy — stretched slightly on XZ for a wider, rounder broadleaf look
+    // Canopy: cone half-height = 2.25*scale, center placed so bottom = trunk top
+    // center = groundY + 2*scale + 2.25*scale = groundY + 4.25*scale
     const colorIdx = i % DECIDUOUS_CANOPY_COLORS.length;
     const instanceIdx = Math.floor(i / DECIDUOUS_CANOPY_COLORS.length);
-    dummy.position.set(x, groundY + 3.5 * scale, z);
-    dummy.scale.set(scale * 1.6, scale * 1.2, scale * 1.6); // wider than tall
+    dummy.position.set(x, groundY + 4.25 * scale, z);
+    dummy.scale.set(scale * 1.15, scale, scale * 1.15); // slightly wider than tall
     dummy.updateMatrix();
     canopyMeshes[colorIdx]!.setMatrixAt(instanceIdx, dummy.matrix);
-    // Reset scale for next trunk placement
     dummy.scale.setScalar(scale);
   }
 

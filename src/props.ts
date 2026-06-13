@@ -109,10 +109,10 @@ function placeBushes(
       const groundY = getHeightAt(x, z);
       const scale = 0.6 + rng() * 0.8; // small shrubs to large bushes
 
-      dummy.position.set(x, groundY + scale * 0.8, z);
+      // Center at ground level so bottom half is buried — only the dome is visible
+      dummy.position.set(x, groundY, z);
       dummy.rotation.set(0, rng() * Math.PI * 2, 0);
-      // Squash vertically and widen — bushes are wider than tall
-      dummy.scale.set(scale * (1.0 + rng() * 0.5), scale * 0.65, scale * (1.0 + rng() * 0.5));
+      dummy.scale.set(scale * (1.1 + rng() * 0.4), scale * 0.7, scale * (1.1 + rng() * 0.4));
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
     }

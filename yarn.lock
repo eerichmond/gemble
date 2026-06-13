@@ -800,7 +800,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/stats.js@npm:*":
+"@types/stats.js@npm:*, @types/stats.js@npm:^0.17.4":
   version: 0.17.4
   resolution: "@types/stats.js@npm:0.17.4"
   checksum: 10c0/4fe0429998519f0476f03a25b4900b4d4a1474606478657271e40a884f7936ba902ea564b1c95cfd33a8e84af46cef6e1e98bb23e86fd3b6676cd5b974987151
@@ -1781,6 +1781,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "gemble@workspace:."
   dependencies:
+    "@types/stats.js": "npm:^0.17.4"
     "@types/three": "npm:^0.176.0"
     "@typescript-eslint/eslint-plugin": "npm:^8.0.0"
     "@typescript-eslint/parser": "npm:^8.0.0"
@@ -1789,6 +1790,7 @@ __metadata:
     eslint-plugin-prettier: "npm:^5.0.0"
     jsdom: "npm:^26.0.0"
     prettier: "npm:^3.0.0"
+    stats.js: "npm:^0.17.0"
     three: "npm:^0.176.0"
     typescript: "npm:^5.8.0"
     vite: "npm:^6.0.0"
@@ -2469,6 +2471,13 @@ __metadata:
   version: 0.0.2
   resolution: "stackback@npm:0.0.2"
   checksum: 10c0/89a1416668f950236dd5ac9f9a6b2588e1b9b62b1b6ad8dff1bfc5d1a15dbf0aafc9b52d2226d00c28dffff212da464eaeebfc6b7578b9d180cef3e3782c5983
+  languageName: node
+  linkType: hard
+
+"stats.js@npm:^0.17.0":
+  version: 0.17.0
+  resolution: "stats.js@npm:0.17.0"
+  checksum: 10c0/03392b4b9eb15cb285b8cf46c5dd68e4e7b556d8e4c72a3a48e6bd2ab6f2e72a02b145d465f594450df081d8f94a45e8ac1112a0d507a200a5768504082ca080
   languageName: node
   linkType: hard
 

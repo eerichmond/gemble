@@ -16,6 +16,8 @@ import { createChests } from './chests';
 import { createBirds } from './birds';
 import { createCapybaras } from './capybaras';
 import { createGhosts } from './ghosts';
+import { createWaterways, POND_EXCLUSION } from './waterways';
+import { createFlankTrees } from './trees';
 // FUTURE Phase 2: import { applyDuskAtmosphere } from './atmosphere';
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -41,12 +43,16 @@ const { update: updateGem, obstacles: gemObstacles } = createGem(scene, getHeigh
 
 const { update: updateChests, obstacles: chestObstacles } = createChests(scene, getHeightAt, mountainObstacles);
 
+// Phase 10: waterways (pond, stream, cliff, river) + city-flank trees
+const { pondObstacle, cliffBox } = createWaterways(scene, getHeightAt);
+const flankTreePositions = createFlankTrees(scene, getHeightAt, [POND_EXCLUSION]);
+
 const { update: updatePlayer } = createPlayer(
   camera,
   getHeightAt,
-  treePositions,
-  [...mountainObstacles, ...gemObstacles, ...chestObstacles, ...crystalObstacles],
-  collisionBoxes,
+  [...treePositions, ...flankTreePositions],
+  [...mountainObstacles, ...gemObstacles, ...chestObstacles, ...crystalObstacles, pondObstacle],
+  [...collisionBoxes, cliffBox],
 );
 const { update: updateBirds } = createBirds(scene, getHeightAt);
 const { update: updateCapybaras } = createCapybaras(scene, getHeightAt, excludeZones);

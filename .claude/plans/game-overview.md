@@ -68,7 +68,7 @@ gemble/
     ├── city.ts              # buildings, parking, props  [Phase 4 ✅]
     ├── gem.ts               # gem + 4 pyramid crystals, forest  [Phase 4 ✅]
     ├── audio.ts             # forest ambient + caw sound  [Phase 4/5 ✅]
-    ├── monsters.ts          # flying eye  [Phase 7 partial ✅]
+    ├── monsters.ts          # flying eye + crystal troll + winged monsters  [Phase 7 in progress]
     ├── compass.ts           # HUD compass  [Phase 4 ✅]
     ├── birds.ts             # crow groups that startle on approach  [Phase 5 ✅]
     ├── chests.ts            # treasure chests, armor loot, open/close  [Phase 6 ✅]
@@ -363,7 +363,7 @@ Abstract floating creature at `(0, groundY + 5.0, -310)` — city main intersect
 
 ### Crystal Troll — placed at `(-20, terrain, 50)` in forest (~85 u south of spawn, behind terrain rise)
 
-Stocky humanoid ~2.2 units tall. **Olive-green skin** (`0x5a7040`), darker detail color `0x3d5030`. **Tan burlap clothes** (BoxGeometry pants at hips, BoxGeometry tunic panel at lower chest) — `0xc8a060`. Steel-blue crystal spikes on crown.
+Stocky humanoid ~2.2 units tall. **Dark blue skin** (`0x1e3068`), darker detail `0x0e1840`. No clothes. Steel-blue crystal spikes on crown. Mountain avoidance: `createMonsters` checks `mountainObstacles` and offsets if blocked.
 
 All limbs: `CapsuleGeometry` + `SphereGeometry` joints. `rz = atan2(-dx, dy)` for angled capsule orientation.
 
@@ -373,9 +373,7 @@ All limbs: `CapsuleGeometry` + `SphereGeometry` joints. `rz = atan2(-dx, dy)` fo
 | Knees | `SphereGeometry(0.105)` | |
 | Thighs | `CapsuleGeometry(0.12, 0.22)` | converge toward center |
 | Hips | `SphereGeometry(0.19)` | |
-| Pants | `BoxGeometry(0.50, 0.34, 0.26)` tan | covers hips/thigh region |
 | Chest | `CapsuleGeometry(0.24, 0.14)` | stocky, wide |
-| Tunic | `BoxGeometry(0.52, 0.20, 0.28)` tan | lower chest panel |
 | Head | `SphereGeometry(0.27)` | in `headGroup` for animation |
 | Brow | `BoxGeometry(0.36, 0.07, 0.09)` skinDk | above eyes |
 | Nose | `ConeGeometry(0.065, 0.16, 4)`, `rotation.x = -π/2` | pointy, forward |
@@ -385,15 +383,15 @@ All limbs: `CapsuleGeometry` + `SphereGeometry` joints. `rz = atan2(-dx, dy)` fo
 | Forearms | `CapsuleGeometry(0.085, 0.23)` | dir `(±0.50, 0.87)`, bend further up |
 | Claws ×3/hand | `ConeGeometry(0.055, 0.22, 4)` skinDk | splayed ±0.26 rad in forearm dir |
 
-**Animation (in `createForestMonsters.update`):**
+**Animation (in `createMonsters.update`):**
 - `headGroup.rotation.y = sin(t × 0.55) × 0.30` — slow head turn side-to-side
 - `rootGroup.rotation.z = sin(t × 0.40) × 0.035` — subtle body weight shift
 
 ---
 
-### Winged Monster — placed at `(-18, terrain, -365)` in city (west side of city, between houses)
+### Winged Monster — two instances: `(-18, terrain, -365)` city (west side, between houses) + `(55, terrain, -30)` forest east
 
-Narrow humanoid, similar height to troll. **Dark charcoal body** (`0x2a2830`). **Dark cloth** (`0x3a3025`) BoxGeometry wrap at waist and chest. T-pose arms. Spiky hair, no nose/mouth. Bat wings from upper back.
+Narrow humanoid, similar height to troll. **Dark blue body** (`0x1e3068`). No clothes. T-pose arms. Spiky hair, no nose/mouth. Bat wings from upper back.
 
 **Wings** (per side): arm spar (`CapsuleGeometry(0.04, 0.82)`), wrist ball, 3 finger spars spreading F1 (up-out), F2 (horizontal), F3 (down-out). Dark `PlaneGeometry` membrane (`DoubleSide`, `0x1a0a1a`). Wing groups pivot at back-shoulder level.
 
@@ -406,45 +404,87 @@ Narrow humanoid, similar height to troll. **Dark charcoal body** (`0x2a2830`). *
 
 ### `src/monsters.ts` structure
 
-`createFlyingEye` + `buildCrystalTroll` + `buildWingedMonster` + `createMonsters` (export, wired in `main.ts`). Note: function was renamed from `createForestMonsters` — one monster is in the city now.
+`createFlyingEye` + `buildCrystalTroll` + `buildWingedMonster` + `createMonsters(scene, getHeightAt, mountainObstacles)`.  
+`createMonsters` returns `{ update(dt), positions: {x,z,type}[] }` — used by minimap.
 
 ### Phase 7 Visual Checklist
 
 - [x] Flying Eye in city — bobs, drifts, tracks player with iris
-- [ ] Crystal Troll visible in forest (~85 u south of spawn, behind hill)
-- [ ] Winged Monster visible in city (west side, between houses)
+- [ ] Crystal Troll visible in forest (~85 u south of spawn, behind hill), dark blue
+- [ ] Winged Monster #1 visible in city (west side, between houses), dark blue
+- [ ] Winged Monster #2 visible in forest east (~(55, -30)), dark blue
 - [ ] Troll head turns slowly side-to-side; body sways subtly
 - [ ] Winged Monster wings flap slowly up and down together
 - [ ] Winged Monster head sways side-to-side
-- [ ] No fps drop with all three active
+- [ ] No fps drop with all four monsters active
 
 ---
 
-## Phase 8 — Capybaras ✅ DONE
+## Phase 8 — Capybaras
 
-**Goal:** Add ~10 capybaras grazing in the forest, grouped in clusters of 3–4. Visual-only. Each slowly bobs its head as if eating from the ground.
+**Goal:** Add ~10 capybaras grazing in the forest, grouped in clusters of 3–4. Each bobs its head and wanders slowly.
 
 **New files:** `src/capybaras.ts`  
-**Modified files:** `src/main.ts` (import + wire `updateCapybaras`)
+**Modified files:** `src/main.ts`
 
-**Design:** Boxy rectangular body + black stick legs with an oval ellipsoid head that bobs down toward the ground. Large and small sizes. 3 groups (sizes 3, 3, 4 = 10 total), seeded LCG seed 88.
+**Design:** Oval ellipsoid body (`SphereGeometry(1,12,8)` scaled), black stick legs, oval head. Large and small sizes; sizes increased ~30% from original. 3 groups (sizes 3, 3, 4 = 10 total), seeded LCG seed 88.
 
-**Head animation:** `headGroup.rotation.x` oscillates 0 ↔ 0.35 rad at 0.8–1.4 rad/s with randomized phase — animals in the same group don't nod in sync.
+**Body geometry:** shared `SphereGeometry(1,12,8)` scaled per-instance to `(bW/2, bH/2, bL/2)` — smooth oval, not boxy.
+
+**Head animation:** `headGroup.rotation.x` oscillates 0 ↔ 0.35 rad at 0.8–1.4 rad/s with randomized phase.
+
+**Wandering:** each capybara has `wanderAngle`, `wanderTimer`, `wanderSpeed` (0.4–0.8 u/s). Changes direction every 2–7 s. Stays within 15 u of starting position; turns back toward home if boundary reached.
 
 **Placement:** group centers in x:[-150,150], z:[-130,130]; 30 u clearance from player spawn; avoids road corridor, city zone, mountain bases.
 
-**Phase 6 armor one-time-loot fix (also in this commit):** `armorLooted: boolean` flag added. Once armor is picked up it stays gone permanently — chest remains openable but shows empty interior.
+**Returns:** `{ update(dt), capybaraPositions: {x,z}[] }` — live array mutated each frame; used by minimap.
 
 ### Phase 8 Visual Checklist
 
 - [ ] ~10 capybaras visible in the forest in clusters of 3–4
+- [ ] Bodies are oval/rounded, not boxy
 - [ ] Large and small sizes clearly distinct
-- [ ] Black stick legs, brown rectangular body, oval brown head
-- [ ] Head bobs smoothly (grazing motion) — not snappy, staggered between animals
-- [ ] Small square ears on top-back of oval head
+- [ ] Capybaras slowly wander around their starting area
+- [ ] Head bobs smoothly — staggered between animals
 - [ ] Black square eyes on TOP of head, set back from snout
 - [ ] Black square nose at snout tip
 - [ ] No fps drop with 10 capybaras active
+
+---
+
+## Phase 8b — Minimap + Inventory HUD
+
+### Minimap (`src/minimap.ts`)
+
+Small `<canvas>` overlay at bottom-left (130×160 px, same style as compass). Shows the full world at scale.
+
+**Coordinate transform:**  
+`mapX = (worldX + 250) / 500 * 130`  
+`mapY = (250 − worldZ) / 690 * 160` (north at top)
+
+**Dots:**
+| Entity | Color | Size |
+|---|---|---|
+| Player | white | 5 px (+ direction triangle) |
+| Gem | purple `#aa44ff` | 3 px |
+| Chests (4) | gold `#ffcc00` | 3 px |
+| Flying Eye | red `#ff4444` | 3 px |
+| Crystal Troll | red `#ff4444` | 3 px |
+| Winged Monsters (2) | red `#ff4444` | 3 px |
+| Capybaras (10) | green `#44bb44` | 2 px |
+
+**API:** `createMinimap(staticEntities, liveCapybaraPositions) → { update(playerX, playerZ, playerYaw) }`  
+Static entities set at init (gem, chests, monsters, flying eye). Capybara positions are a live array reference mutated each frame by capybaras.ts.
+
+### Inventory / Held Item (`src/inventory.ts`)
+
+Tracks what the player picked up from chests. Shows it as a first-person "held" view on Shift+Space.
+
+**Pickup flow:** `createChests` accepts `onLootPickedUp?: (type: LootType) => void`. Called when player takes loot. Plain Space at chest triggers interaction; Shift+Space is reserved for inventory.
+
+**Held view:** `armGroup` (THREE.Group) parented to camera at `(0.3, -0.8, -1.5)`, scaled `0.35×`, slight tilt. Camera added to scene so children render. Toggled visible on Shift+Space.
+
+**API:** `createInventory(scene, camera) → { pickupItem(type), update() }`
 
 ---
 
@@ -482,6 +522,72 @@ Narrow humanoid, similar height to troll. **Dark charcoal body** (`0x2a2830`). *
 - [ ] Ghosts stagger their wait times — not all active simultaneously
 - [ ] Doors on buildings are visible gray-brown, not near-black
 - [ ] No fps drop with 3 ghosts active
+
+---
+
+## Phase 10 — Forest Flanks, Pond, Stream & River
+
+**Goal:** Add natural variety flanking the city. Dense trees on both sides make the city feel enclosed in wilderness. A pond west of the city (same footprint as the apartment) feeds a stream to a cliff edge, where a wide river runs along the west map boundary.
+
+**New files:** `src/waterways.ts`  
+**Modified files:** `src/trees.ts` (extra flank tree pass), `src/main.ts` (wire waterways obstacles into player)
+
+### City Flank Trees
+
+Extra tree placement pass specifically for the east/west corridors flanking the city:
+- **West flank:** x:[-220, -90], z:[-260, -445]
+- **East flank:** x:[90, 220], z:[-260, -445]
+- ~50 trees per side (seeded LCG seed 303, mix of pines and deciduous matching existing geometry)
+- Same exclusion rules as main forest: road corridor, mountain bases, city buildings; plus 20-unit pond exclusion for west flank
+
+### Pond (~-110, terrain, -340)
+
+Circular water body directly west of city mid-section (apartment is at x=25, z=-330; this mirrors it on the other side of the road).
+
+- `CircleGeometry` radius 11, blue-teal `MeshLambertMaterial` (`0x2a5a8a`), +0.05 u above terrain
+- 8–12 rocks (existing boulder geometry) + 6–8 bushes in a loose ring 12–18 u from center (seeded LCG)
+- `CircleObstacle` radius 11.5 — player can't walk into water
+- Trees cleared in a 20-unit exclusion radius passed to the flank tree placement
+
+### Stream
+
+Narrow (3-unit-wide) water ribbon connecting pond's west edge to the cliff base.
+
+- Flat terrain-conforming strip: multiple 1-unit-step `PlaneGeometry` segments, each laid flat via `rotateX(-PI/2)`
+- Runs due west: x:[-122, -185], z≈-340
+- Color `0x2a6a6a` (slightly greener than pond — suggests moving water vs still)
+- No player collision — visual only
+
+### Cliff Face (x ≈ -185)
+
+Tall rocky wall the full north-south map extent, blocking passage into the river valley.
+
+- Several overlapping `BoxGeometry` panels at varying heights for a craggy look; dark rocky gray `0x3a3a3a` / `0x2a2a2a`
+- Player collision: a single `BuildingBox` AABB `{ minX: -195, maxX: -183, minZ: -450, maxZ: 250 }` — same system as city buildings
+- Cliff rises ~14 units above terrain, so top is visible from distance; river is visible below
+
+### River (x: -195 to -250)
+
+Wide flat water plane behind the cliff, full north-south extent.
+
+- `PlaneGeometry(55, 700)` rotated flat, centered at x≈-222, z=-100, y=-5 (well below cliff-top terrain)
+- Deep blue `MeshLambertMaterial` (`0x1a4a7a`, opacity 0.92, transparent, depthWrite: false)
+- 55 units wide — exceeds the 30-unit minimum
+- No extra collision needed — cliff AABB already blocks player
+
+### Phase 10 Visual Checklist
+
+- [ ] Dense trees visible on both sides of the city (east and west) when standing at city entrance
+- [ ] Pond clearly visible from city west side — blue-teal flat disk
+- [ ] Rocks and bushes clustered at pond edges
+- [ ] No trees growing in/over the pond
+- [ ] Stream visible as a narrow ribbon of water running west from the pond
+- [ ] Stream meets the cliff face naturally
+- [ ] Cliff face is a tall rocky wall — visible from 80+ units
+- [ ] River visible behind the cliff — deep blue, clearly wide (>30 u)
+- [ ] Player blocked from entering pond (CircleObstacle)
+- [ ] Player blocked from crossing cliff face (BuildingBox AABB)
+- [ ] No fps drop with all elements added
 
 ---
 

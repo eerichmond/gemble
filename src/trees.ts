@@ -175,6 +175,153 @@ function placeDeciduousTrees(
   canopyMeshes.forEach(m => (m.instanceMatrix.needsUpdate = true));
 }
 
+// ── City flank trees (Phase 10) ───────────────────────────────────────────────
+// Extra tree pass for the east/west corridors flanking the city.
+// Uses the same geometry and materials as the main forest for a seamless look.
+
+const FLANK_PINES = 50;
+const FLANK_DECID = 30;
+
+export function createFlankTrees(
+  scene: THREE.Scene,
+  getHeightAt: (x: number, z: number) => number,
+  extraExclude: CircleObstacle[] = [],
+): TreePosition[] {
+  const rng = makeRng(303);
+  const treePositions: TreePosition[] = [];
+  const dummy = new THREE.Object3D();
+
+  const westExclude: CircleObstacle[] = [...extraExclude];
+  const eastExclude: CircleObstacle[] = [];
+
+  placeFlankPines(scene, getHeightAt, rng, dummy, treePositions,
+    -220, -90, westExclude);
+  placeFlankPines(scene, getHeightAt, rng, dummy, treePositions,
+    90, 220, eastExclude);
+  placeFlankDeciduous(scene, getHeightAt, rng, dummy, treePositions,
+    -220, -90, westExclude);
+  placeFlankDeciduous(scene, getHeightAt, rng, dummy, treePositions,
+    90, 220, eastExclude);
+
+  return treePositions;
+}
+
+function placeFlankPines(
+  scene: THREE.Scene,
+  getHeightAt: (x: number, z: number) => number,
+  rng: () => number,
+  dummy: THREE.Object3D,
+  out: TreePosition[],
+  xMin: number, xMax: number,
+  extraExclude: CircleObstacle[],
+): void {
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x3d2005 });
+  const canopyMats = [
+    new THREE.MeshLambertMaterial({ color: 0x0d2e0d }),
+    new THREE.MeshLambertMaterial({ color: 0x0f3a0f }),
+    new THREE.MeshLambertMaterial({ color: 0x122e12 }),
+  ];
+  const trunkGeo = new THREE.CylinderGeometry(0.15, 0.25, 2, 6);
+  const canopyGeos = [
+    new THREE.ConeGeometry(2.5, 4, 7),
+    new THREE.ConeGeometry(1.8, 3.5, 7),
+    new THREE.ConeGeometry(1.1, 3, 7),
+  ];
+
+  const trunk = new THREE.InstancedMesh(trunkGeo, trunkMat, FLANK_PINES);
+  const c0 = new THREE.InstancedMesh(canopyGeos[0], canopyMats[0], FLANK_PINES);
+  const c1 = new THREE.InstancedMesh(canopyGeos[1], canopyMats[1], FLANK_PINES);
+  const c2 = new THREE.InstancedMesh(canopyGeos[2], canopyMats[2], FLANK_PINES);
+  [trunk, c0, c1, c2].forEach(m => scene.add(m));
+
+  for (let i = 0; i < FLANK_PINES; i++) {
+    const { x, z } = randomRectPos(rng, xMin, xMax, -445, -260, extraExclude);
+    const groundY = getHeightAt(x, z);
+    const scale = 2.0 + rng() * 1.5;
+    const yaw = rng() * Math.PI * 2;
+    out.push({ x, z, radius: 0.25 * scale });
+
+    dummy.rotation.set(0, yaw, 0);
+    dummy.scale.setScalar(scale);
+    dummy.position.set(x, groundY + scale, z);      dummy.updateMatrix(); trunk.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(x, groundY + 4 * scale, z);  dummy.updateMatrix(); c0.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(x, groundY + 5.5 * scale, z);dummy.updateMatrix(); c1.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(x, groundY + 7 * scale, z);  dummy.updateMatrix(); c2.setMatrixAt(i, dummy.matrix);
+  }
+  [trunk, c0, c1, c2].forEach(m => (m.instanceMatrix.needsUpdate = true));
+}
+
+function placeFlankDeciduous(
+  scene: THREE.Scene,
+  getHeightAt: (x: number, z: number) => number,
+  rng: () => number,
+  dummy: THREE.Object3D,
+  out: TreePosition[],
+  xMin: number, xMax: number,
+  extraExclude: CircleObstacle[],
+): void {
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x5c3a10 });
+  const trunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 2, 6);
+  const canopyGeo = new THREE.IcosahedronGeometry(1, 1);
+  const trunk = new THREE.InstancedMesh(trunkGeo, trunkMat, FLANK_DECID);
+  trunk.castShadow = true;
+  scene.add(trunk);
+
+  const perColor = Math.ceil(FLANK_DECID / DECIDUOUS_CANOPY_COLORS.length);
+  const canopyMeshes = DECIDUOUS_CANOPY_COLORS.map(color => {
+    const mesh = new THREE.InstancedMesh(canopyGeo, new THREE.MeshLambertMaterial({ color }), perColor);
+    scene.add(mesh);
+    return mesh;
+  });
+
+  for (let i = 0; i < FLANK_DECID; i++) {
+    const { x, z } = randomRectPos(rng, xMin, xMax, -445, -260, extraExclude);
+    const groundY = getHeightAt(x, z);
+    const scale = 1.8 + rng() * 1.2;
+    const yaw = rng() * Math.PI * 2;
+    out.push({ x, z, radius: 0.28 * scale });
+
+    dummy.rotation.set(0, yaw, 0);
+    dummy.scale.setScalar(scale);
+    dummy.position.set(x, groundY + scale, z);
+    dummy.updateMatrix();
+    trunk.setMatrixAt(i, dummy.matrix);
+
+    const colorIdx = i % DECIDUOUS_CANOPY_COLORS.length;
+    const instanceIdx = Math.floor(i / DECIDUOUS_CANOPY_COLORS.length);
+    dummy.position.set(x, groundY + 3.4 * scale, z);
+    dummy.scale.set(scale * 2.2, scale * 1.4, scale * 2.2);
+    dummy.updateMatrix();
+    canopyMeshes[colorIdx]!.setMatrixAt(instanceIdx, dummy.matrix);
+    dummy.scale.setScalar(scale);
+  }
+  trunk.instanceMatrix.needsUpdate = true;
+  canopyMeshes.forEach(m => (m.instanceMatrix.needsUpdate = true));
+}
+
+function randomRectPos(
+  rng: () => number,
+  xMin: number, xMax: number,
+  zMin: number, zMax: number,
+  excludeZones: CircleObstacle[] = [],
+): { x: number; z: number } {
+  let x = 0, z = 0;
+  let attempts = 0;
+  do {
+    x = xMin + rng() * (xMax - xMin);
+    z = zMin + rng() * (zMax - zMin);
+    attempts++;
+    if (attempts > 1000) break;
+  } while (
+    excludeZones.some(zone => {
+      const dx = x - zone.x;
+      const dz = z - zone.z;
+      return dx * dx + dz * dz < zone.radius * zone.radius;
+    })
+  );
+  return { x, z };
+}
+
 // ---- Shared helpers -------------------------------------------------------
 
 function randomWorldPos(

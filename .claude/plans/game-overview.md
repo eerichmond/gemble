@@ -511,6 +511,129 @@ feat(chests): interactive pirate treasure chests that open on approach + Space
 
 ---
 
+## Phase 7 — Monsters
+
+**Goal:** Populate the forest and city with three distinct enemy creatures that roam or float near the player. They are visual-only for now (no AI or combat) — just enough geometry to define their look so we can iterate before committing to implementation.
+
+**New files:** `src/monsters.ts`  
+**Modified files:** `src/main.ts` (wire monster update)
+
+### Design (from pencil sketches in `docs/`)
+
+All three monsters share a single **indigo palette** — the colour ties them together as inhabitants of the same dark world.
+
+| Material | Hex | Role |
+|---|---|---|
+| `iBody` | `0x4a2090` | main body |
+| `iMid` | `0x6030a8` | joints, face accents |
+| `iLight` | `0x7a52c8` | crystal spikes (troll) |
+| `iDark` | `0x1e0a48` | eye sockets, claws, hair |
+| `iCloth` | `0x38156a` | torn clothing patches |
+| `iGlow` (iris) | `0xaa66ee` + emissive `0x7733cc` | flying eye iris |
+
+---
+
+### Crystal Troll (`docs/crystal-troll.png`)
+
+Stocky humanoid, ~2.2 units tall. Arms raised with clawed hands.
+
+**Geometry approach — CapsuleGeometry for all limbs, SphereGeometry for head/joints:**
+
+| Part | Geometry | Notes |
+|---|---|---|
+| Feet | `CapsuleGeometry(0.07, 0.14)`, `rotation.x = π/2` | horizontal, pointing forward |
+| Calves | `CapsuleGeometry(0.09, 0.32)` total h=0.50 | |
+| Knee joints | `SphereGeometry(0.105)` | |
+| Thighs | `CapsuleGeometry(0.12, 0.24)` total h=0.48 | converge toward center |
+| Hips | `SphereGeometry(0.19)` + `CapsuleGeometry(0.18, 0.02)` | `iCloth` pants |
+| Chest | `CapsuleGeometry(0.24, 0.14)` total h=0.62 | stocky, wide |
+| Shoulder joints | `SphereGeometry(0.135)` | |
+| Neck | `CapsuleGeometry(0.10, 0.06)` total h=0.26 | short, thick |
+| Head | `SphereGeometry(0.27)` | slightly oversized for troll |
+| Eyes | `SphereGeometry(0.065)` `iDark` | on head surface at z≈+0.25 |
+| Brow ridge | `BoxGeometry(0.36, 0.07, 0.09)` `iDark` | |
+| Nose | `ConeGeometry(0.065, 0.16, 4)`, `rotation.x = -π/2` | pointy, forward |
+| Ears | `ConeGeometry(0.055, 0.19, 4)`, `rotation.z = ±π/2` | side of head |
+| Crystal spikes (×3) | `ConeGeometry(0.07, 0.37, 5)` `iLight` | crown of head, varied tilt |
+| Upper arms | `CapsuleGeometry(0.09, 0.26)` total h=0.44 | `rotation.z` computed from joint angle |
+| Elbow joints | `SphereGeometry(0.095)` | |
+| Forearms | `CapsuleGeometry(0.085, 0.23)` total h=0.40 | |
+| Fists | `SphereGeometry(0.095)` | |
+| Claws (×3 per hand) | `ConeGeometry(0.06, 0.26, 4)` `iDark` | splayed from fist |
+
+**Arm angle computation** — capsule default axis is +Y; `rotation.z = θ` tilts axis to `(-sin θ, cos θ)`. Upper arm: θ = `side * 0.87` (~50° outward). Forearm: θ = `side * 0.52` (~30° outward). Joint world positions are computed analytically from θ and total capsule length so elbow/hand land exactly right.
+
+**Crystal spikes**: `iLight` (lighter indigo, same hue family) — no emissive glow. The spikes are the same indigo as the body, just a lighter shade. Previously tried cyan `0x88eeff` — rejected as too bright and wrong colour.
+
+---
+
+### Flying Eye (`docs/flying-eye-monster.png`)
+
+Abstract floating creature — a glowing indigo sphere with an iris and two side cones. Minimal geometry, maximum read.
+
+| Part | Geometry | Notes |
+|---|---|---|
+| Outer sphere | `SphereGeometry(0.55, 24, 20)` `iBody` | sclera / shell |
+| Iris | `SphereGeometry(0.36, 20, 16)` `iGlow` | nested inside, z+0.30 |
+| Pupil | `SphereGeometry(0.18, 16, 12)` `iPupil` | z+0.52 |
+| Side cones (×2) | `ConeGeometry(0.10, 0.28, 5)`, `rotation.z = ±π/2` | float either side at x=±0.72 |
+
+**Nothing below the sphere** — earlier iterations added a dangling teardrop and a laser beam, both removed per design review.
+
+**Animation:** bobs vertically `±0.12` at 1.3 Hz; slow Y-rotation `±0.25 rad` at 0.4 Hz; iris tilts on X and Y axes for a "looking around" effect.
+
+Float height: eye-level for a standing player (~2.85 units).
+
+---
+
+### Winged Monster (`docs/winged-monster.png`)
+
+Narrow humanoid, similar height to Crystal Troll but more elegant. Bat wings from upper back. T-pose arms. Spiky hair, no mouth.
+
+**Body uses same CapsuleGeometry/SphereGeometry approach, narrower proportions:**
+
+- Calves: `CapsuleGeometry(0.08, …)` vs troll `0.09`
+- Chest: `CapsuleGeometry(0.17, …)` vs troll `0.24` — narrower, more menacing
+- Clothing: hips + lower torso in `iCloth`
+
+**Wings** (built per side):
+- Main spar: `CapsuleGeometry(0.055, …)` from upper back `(±0.22, 1.58)`, angled ~60° from vertical (`rotation.z = side * 1.05`)
+- Secondary spar from main spar tip, less steep (`rotation.z = side * 0.36`)
+- Upper membrane: `PlaneGeometry(1.08, 0.84)`, `DoubleSide`, ~85% opacity, dark indigo `0x2a1060`
+- Lower membrane: `PlaneGeometry(0.88, 1.10)`, hangs down from spar
+
+**Arms**: horizontal T-pose — `CapsuleGeometry` with `rotation.z = ±π/2` (makes capsule axis point ∓X). Upper arm → elbow sphere → forearm → hand sphere, computed from shoulder position.
+
+---
+
+### Geometry strategy note
+
+Three.js `CapsuleGeometry` (available since r142, confirmed present in r176) produces significantly more organic-looking limbs than `BoxGeometry`. The previous box-based attempt looked like Minecraft characters. Switching to capsule+sphere for all limb and head geometry resolved this.
+
+**Alternative considered**: loading GLTF models (e.g. from [Quaternius](https://quaternius.com) — free CC0 rigged character packs). This remains a valid upgrade path if more anatomical accuracy is needed once the game design is further along. `GLTFLoader` is already in Three.js r176 addons.
+
+**Preview file**: `src/temp/monster-preview.html` — standalone HTML (Three.js via CDN, no build step) showing all three monsters side by side on a daylight background. Delete when no longer needed.
+
+---
+
+### `src/monsters.ts` (planned — not yet built)
+
+- Places one of each monster type in the world (exact positions TBD)
+- Exports `{ update(dt: number, playerX: number, playerZ: number): void }`
+- Flying Eye floats and bobs; troll and winged monster are initially static (idle pose)
+- Each monster is a `THREE.Group` assembled from the geometry above
+
+### Phase 7 Visual Checklist
+
+- [ ] All three monsters visible in the world
+- [ ] Indigo palette consistent across all three
+- [ ] Crystal Troll: stocky, arms raised, crystal spikes visible on head
+- [ ] Flying Eye: floating at ~2.85 units, bobs + slow rotation, glowing iris
+- [ ] Winged Monster: narrow, bat wings with membrane, spiky hair
+- [ ] No fps drop with all three active
+
+---
+
 ## TypeScript Interfaces (shared across modules)
 
 ```ts

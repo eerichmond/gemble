@@ -2,22 +2,26 @@ import * as THREE from 'three';
 import { isKeyDown } from './input';
 import type { CircleObstacle } from './terrain';
 
-// ── Treasure Chests ───────────────────────────────────────────────────────────
-// State machine per chest:  closed → opening → open → looted → closing → closed
-//   Space (within 3 units, state=closed)  → start opening
-//   Space (state=open)                    → pick up armor
-//   Space (state=looted)                  → start closing
+// ── Treasure Chests (Phase 6) ─────────────────────────────────────────────────
+// 4 chests, each containing a unique Minecraft-style loot item.
+// State machine: closed → opening → open → looted → closing → closed
+//   Space (within 3 u, state=closed)  → start opening
+//   Space (state=open)                → pick up loot (one-time)
+//   Space (state=looted)              → start closing
+
+export type LootType = 'armor' | 'sword' | 'shield' | 'food';
 
 type ChestState = 'closed' | 'opening' | 'open' | 'looted' | 'closing';
 
 interface Chest {
   lidGroup: THREE.Group;
-  armor: THREE.Group;
+  loot: THREE.Group;
+  lootType: LootType;
   interiorLight: THREE.PointLight;
   state: ChestState;
-  animTimer: number;    // opening: 0→ANIM_DUR; closing: ANIM_DUR→0
-  armorSpinT: number;   // cumulative time while in 'open' state
-  armorLooted: boolean; // true once armor has been picked up — never re-appears
+  animTimer: number;   // opening: 0→ANIM_DUR; closing: ANIM_DUR→0
+  lootSpinT: number;   // cumulative time while in 'open' state
+  lootTaken: boolean;  // true once loot has been picked up — never re-appears
   x: number;
   z: number;
 }
@@ -41,12 +45,13 @@ function lcg(seed: number) {
 }
 
 // ── Dimensions ────────────────────────────────────────────────────────────────
-const ANIM_DUR   = 0.6;
-const LID_ANGLE  = 2.1;    // radians; positive = lid swings UP and backward
-const W          = 1.60;
-const H          = 1.60;   // body height; deeper interior than v1 (was 1.40)
-const D          = 1.00;
-const LID_H      = 0.60;
+const ANIM_DUR  = 0.6;
+const LID_ANGLE = 2.1;   // radians; lid swings UP and backward
+const W         = 1.60;
+const H         = 1.60;  // body height
+const D         = 1.00;
+const LID_H     = 0.60;
+const LOOT_Y    = H + 0.45; // hover height above chest base (≈2.05 u above terrain)
 
 // ── Shared chest geometry ─────────────────────────────────────────────────────
 const _bodyGeo  = new THREE.BoxGeometry(W, H, D);
@@ -64,48 +69,116 @@ const _metal   = new THREE.MeshLambertMaterial({ color: 0x3a3a3a });
 const _hasp    = new THREE.MeshLambertMaterial({ color: 0x5a5a5a });
 const _velvet  = new THREE.MeshLambertMaterial({ color: 0x2a0808 });
 
-// ── Armor geometry — gold chest plate ─────────────────────────────────────────
-// Floats above the open chest; clearly visible at eye level since it hovers at
-// H + 0.45 ≈ 2.05 units above terrain (player eye = 1.70 → armor ~0.35 above).
-const _goldMain = new THREE.MeshLambertMaterial({ color: 0xd4a020, emissive: new THREE.Color(0x3a2800) });
-const _goldTrim = new THREE.MeshLambertMaterial({ color: 0xa07810 });
-
-const _platGeo     = new THREE.BoxGeometry(0.68, 0.78, 0.10);
-const _shoulderGeo = new THREE.BoxGeometry(0.26, 0.24, 0.12);
-const _neckGeo     = new THREE.BoxGeometry(0.28, 0.14, 0.10);
-const _waistGeo    = new THREE.BoxGeometry(0.62, 0.12, 0.10);
-const _ribGeo      = new THREE.BoxGeometry(0.58, 0.06, 0.11);
+// ── Loot item builders ────────────────────────────────────────────────────────
+// All items are centered at y=0 in their group.
+// They float at LOOT_Y above the chest base and spin/bob while visible.
 
 function buildArmor(): THREE.Group {
   const g = new THREE.Group();
+  const gold = new THREE.MeshLambertMaterial({ color: 0xd4a020, emissive: new THREE.Color(0x3a2800) });
+  const trim = new THREE.MeshLambertMaterial({ color: 0xa07810 });
 
-  // Main torso plate
-  g.add(new THREE.Mesh(_platGeo, _goldMain));
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.78, 0.10), gold));
 
-  // Shoulder guards (left & right)
   for (const side of [-1, 1] as const) {
-    const s = new THREE.Mesh(_shoulderGeo, _goldTrim);
+    const s = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.24, 0.12), trim);
     s.position.set(side * 0.47, 0.33, 0);
     g.add(s);
   }
 
-  // Neck guard
-  const neck = new THREE.Mesh(_neckGeo, _goldTrim);
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, 0.10), trim);
   neck.position.set(0, 0.46, 0);
   g.add(neck);
 
-  // Waist band
-  const waist = new THREE.Mesh(_waistGeo, _goldMain);
+  const waist = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.12, 0.10), gold);
   waist.position.set(0, -0.45, 0);
   g.add(waist);
 
-  // Horizontal mid-chest rib
-  const rib = new THREE.Mesh(_ribGeo, _goldTrim);
+  const rib = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.06, 0.11), trim);
   rib.position.set(0, 0.05, 0.01);
   g.add(rib);
 
   return g;
 }
+
+// Sword: blade(0.80) + guard(0.10) + handle(0.35) + pommel(0.12) = 1.37 total.
+// Centers calculated so the whole sword is vertically centered at y=0.
+function buildSword(): THREE.Group {
+  const g = new THREE.Group();
+  const silver = new THREE.MeshLambertMaterial({ color: 0xb8b8c8, emissive: new THREE.Color(0x101018) });
+  const steel  = new THREE.MeshLambertMaterial({ color: 0x606070 });
+  const wood   = new THREE.MeshLambertMaterial({ color: 0x6a3810 });
+
+  // Blade: top at +0.625, center at +0.225, bottom at -0.175
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.80, 0.08), silver);
+  blade.position.y = 0.225;
+  g.add(blade);
+
+  // Cross-guard: center at -0.225
+  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.10, 0.10), steel);
+  guard.position.y = -0.225;
+  g.add(guard);
+
+  // Handle: center at -0.45
+  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.35, 0.10), wood);
+  handle.position.y = -0.45;
+  g.add(handle);
+
+  // Pommel cap: bottom of sword
+  const pommel = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 0.14), steel);
+  pommel.position.y = -0.68;
+  g.add(pommel);
+
+  return g;
+}
+
+// Shield: flat brown rectangle with a raised gold square boss on the front.
+function buildShield(): THREE.Group {
+  const g = new THREE.Group();
+  const brown = new THREE.MeshLambertMaterial({ color: 0x7a4a20 });
+  const boss  = new THREE.MeshLambertMaterial({ color: 0xc0a030, emissive: new THREE.Color(0x302800) });
+
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.84, 0.08), brown);
+  g.add(plate);
+
+  const center = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.30, 0.08), boss);
+  center.position.z = 0.08;
+  g.add(center);
+
+  return g;
+}
+
+// Food: blocky red apple — cube body, brown stem, small green leaf.
+function buildFood(): THREE.Group {
+  const g = new THREE.Group();
+  const red  = new THREE.MeshLambertMaterial({ color: 0xdd2222 });
+  const stem = new THREE.MeshLambertMaterial({ color: 0x6a3810 });
+  const leaf = new THREE.MeshLambertMaterial({ color: 0x2a9a2a });
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.40, 0.40), red);
+  g.add(body);
+
+  const stk = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, 0.06), stem);
+  stk.position.y = 0.28;
+  g.add(stk);
+
+  const lf = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.08), leaf);
+  lf.position.set(0.12, 0.30, 0);
+  g.add(lf);
+
+  return g;
+}
+
+function buildLoot(type: LootType): THREE.Group {
+  switch (type) {
+    case 'armor':  return buildArmor();
+    case 'sword':  return buildSword();
+    case 'shield': return buildShield();
+    case 'food':   return buildFood();
+  }
+}
+
+// ── Chest constructor ─────────────────────────────────────────────────────────
 
 function buildChest(
   scene: THREE.Scene,
@@ -113,6 +186,7 @@ function buildChest(
   x: number,
   z: number,
   rotY: number,
+  lootType: LootType,
 ): Chest {
   const group = new THREE.Group();
   group.position.set(x, getHeightAt(x, z), z);
@@ -121,7 +195,7 @@ function buildChest(
 
   // Body — transparent +Y face exposes interior when looking from above
   const body = new THREE.Mesh(_bodyGeo, _bodyMats);
-  body.position.y = H / 2;  // 0.80
+  body.position.y = H / 2;
   group.add(body);
 
   // Metal bands
@@ -151,20 +225,20 @@ function buildChest(
   lidGroup.position.set(0, H, D / 2);
   group.add(lidGroup);
 
-  // lidMesh: back-bottom edge at pivot origin → shift y+=LID_H/2, z-=D/2
   const lidMesh = new THREE.Mesh(_lidGeo, _wood);
   lidMesh.position.set(0, LID_H / 2, -D / 2);
   lidGroup.add(lidMesh);
 
-  // Armor — floats H+0.45 above chest base (≈2.05 u above terrain)
-  // Hidden until chest opens; bobbing/spinning while in 'open' state
-  const armor = buildArmor();
-  armor.position.set(0, H + 0.45, 0);
-  armor.visible = false;
-  group.add(armor);
+  // Loot item — hidden until chest opens; bobs/spins while in 'open' state
+  const loot = buildLoot(lootType);
+  loot.position.set(0, LOOT_Y, 0);
+  loot.visible = false;
+  group.add(loot);
 
-  return { lidGroup, armor, interiorLight, state: 'closed', animTimer: 0, armorSpinT: 0, armorLooted: false, x, z };
+  return { lidGroup, loot, lootType, interiorLight, state: 'closed', animTimer: 0, lootSpinT: 0, lootTaken: false, x, z };
 }
+
+// ── Public API ────────────────────────────────────────────────────────────────
 
 export function createChests(
   scene: THREE.Scene,
@@ -179,11 +253,12 @@ export function createChests(
   const obstacles: CircleObstacle[] = [];
 
   // Hitbox radius: half-diagonal of 1.60×1.00 footprint ≈ 0.94 → 0.95
-  // Player stops at 0.95 + 0.50 = 1.45 from chest center (at surface, still within 3-unit trigger range)
   const HITBOX_R = 0.95;
+  const TOTAL_CHESTS = 4;
+  const lootTypes: LootType[] = ['armor', 'sword', 'shield', 'food'];
 
   let placed = 0;
-  for (let attempts = 0; placed < 8 && attempts < 600; attempts++) {
+  for (let attempts = 0; placed < TOTAL_CHESTS && attempts < 600; attempts++) {
     const x = (rng() * 2 - 1) * 200;
     const z = (rng() * 2 - 1) * 200;
 
@@ -197,7 +272,7 @@ export function createChests(
     });
     if (tooClose) continue;
 
-    chests.push(buildChest(scene, getHeightAt, x, z, rng() * Math.PI * 2));
+    chests.push(buildChest(scene, getHeightAt, x, z, rng() * Math.PI * 2, lootTypes[placed]!));
     obstacles.push({ x, z, radius: HITBOX_R });
     placed++;
   }
@@ -211,7 +286,6 @@ export function createChests(
       const spaceJustPressed = spaceDown && !spaceWasDown;
       spaceWasDown = spaceDown;
 
-      // Handle Space interactions — only in interactable states, nearest within 3 u
       if (spaceJustPressed) {
         let nearest: Chest | null = null;
         let nearestDist = Infinity;
@@ -230,22 +304,19 @@ export function createChests(
             nearest.state = 'opening';
             nearest.animTimer = 0;
           } else if (nearest.state === 'open') {
-            if (!nearest.armorLooted) {
-              // First-ever pickup: mark permanently looted, remove armor
-              nearest.armor.visible = false;
-              nearest.armorLooted = true;
+            if (!nearest.lootTaken) {
+              nearest.loot.visible = false;
+              nearest.lootTaken = true;
             }
             nearest.interiorLight.intensity = 1;
             nearest.state = 'looted';
           } else if (nearest.state === 'looted') {
-            // Close the empty chest — run animation in reverse
             nearest.state = 'closing';
             nearest.animTimer = ANIM_DUR;
           }
         }
       }
 
-      // Per-chest animation
       for (const chest of chests) {
         switch (chest.state) {
           case 'opening': {
@@ -255,27 +326,24 @@ export function createChests(
             chest.interiorLight.intensity = t * 4;
             if (chest.animTimer >= ANIM_DUR) {
               chest.state = 'open';
-              // Only show armor if it hasn't been picked up in a previous visit
-              chest.armor.visible = !chest.armorLooted;
-              chest.armorSpinT = 0;
+              chest.loot.visible = !chest.lootTaken;
+              chest.lootSpinT = 0;
             }
             break;
           }
 
           case 'open': {
-            // Armor spins and bobs above the open chest
-            chest.armorSpinT += dt;
-            chest.armor.rotation.y = chest.armorSpinT * 1.5;
-            chest.armor.position.y = H + 0.45 + Math.sin(chest.armorSpinT * 2.0) * 0.08;
+            chest.lootSpinT += dt;
+            chest.loot.rotation.y = chest.lootSpinT * 1.5;
+            chest.loot.position.y = LOOT_Y + Math.sin(chest.lootSpinT * 2.0) * 0.08;
             break;
           }
 
           case 'closing': {
-            // Reverse the opening animation — timer counts down from ANIM_DUR to 0
             chest.animTimer = Math.max(chest.animTimer - dt, 0);
             const t = chest.animTimer / ANIM_DUR;
             chest.lidGroup.rotation.x = LID_ANGLE * t;
-            chest.interiorLight.intensity = t;  // was 1 (looted dim), fades to 0
+            chest.interiorLight.intensity = t;
             if (chest.animTimer <= 0) {
               chest.state = 'closed';
             }

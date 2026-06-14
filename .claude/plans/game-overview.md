@@ -294,9 +294,9 @@ Forest ambient CC0 sound (`/assets/forest-ambient.mp3`). Autoplay on first keydo
 
 ---
 
-## Phase 6 — Treasure Chests ✅ DONE
+## Phase 6 — Treasure Chests 🔄 IN PROGRESS
 
-**Goal:** Scatter 8 battered pirate-style treasure chests throughout the forest. Walk close, press Space, and the lid swings open.
+**Goal:** Scatter 4 battered pirate-style treasure chests throughout the forest, each containing a unique Minecraft-style loot item. Walk close, press Space to open; press again to loot; press again to close.
 
 **New files:** `src/chests.ts`  
 **Modified files:** `src/main.ts` (must wire before `createPlayer` so chest obstacles are available for collision)
@@ -305,25 +305,33 @@ Forest ambient CC0 sound (`/assets/forest-ambient.mp3`). Autoplay on first keydo
 - Chest top (H=1.60) sits just below player eye level (1.70) — player looks slightly down into an open chest
 - Body uses a transparent +Y face so the interior is visible from above without clipping (Three.js multi-material per face on a single BoxGeometry)
 - Lid pivots from the back-top hinge — swings UP and backward away from the player
-- Gold armor plate hovers and spins above the chest when open; permanently disappears on second Space press (one-time loot — chest remains openable but shows empty interior)
+- Each chest holds a unique item that floats and spins above it when open; disappears on second Space press (one-time loot — chest remains openable but empty)
 - Hitbox: `CircleObstacle` radius 0.95 per chest; player stops at chest surface, still within 3-unit interaction range
+
+**Loot items (one per chest, assigned in placement order, Minecraft blocky style):**
+1. **Armor** — gold chest plate with shoulder guards, neck guard, waist band, rib stripe
+2. **Sword** — blade (silver), cross-guard (dark steel), handle (brown), pommel cap; stands upright
+3. **Shield** — flat brown rectangle with a raised gold square boss on the front face
+4. **Food** — blocky red apple: cube body, brown stem, small green leaf
+
+**Item animation (all 4 items):** float at `H + 0.45` above chest base; bob `sin(t × 2.0) × 0.08`; spin `rotation.y = t × 1.5`.
 
 **State machine:** `closed → opening → open → looted → closing → closed`. Space bar edge-triggered. Nearest chest within 3 units is targeted.
 
-**Placement (seeded LCG seed 77, 8 chests):** Forest only — excludes spawn area, city zone, road corridor, mountain bases.
+**Placement (seeded LCG seed 77, 4 chests):** Forest only — excludes spawn area, city zone, road corridor, mountain bases.
 
 ### Phase 6 Visual Checklist
 
-- [ ] ~8 chests visible in the world, varied orientations
+- [ ] 4 chests visible in the world, varied orientations
 - [ ] Chests look distinctly pirate — dark wood, metal bands, visible lock hasp
 - [ ] Lid is flat closed when resting
 - [ ] Walking within 3 units + pressing Space swings the lid open
 - [ ] Lid animates smoothly (~0.6 s) — not an instant snap
 - [ ] Lid swings UP and backward (away from player)
-- [ ] Gold chest plate appears floating/spinning above the open chest
-- [ ] Second Space press picks up the armor (plate disappears, light dims)
+- [ ] Each chest reveals a different floating/spinning item (armor, sword, shield, apple)
+- [ ] Second Space press picks up the item (disappears, light dims)
 - [ ] Third Space press closes the chest (lid swings back, light fades)
-- [ ] No fps drop with 8 chests in the scene
+- [ ] No fps drop with 4 chests in the scene
 - [ ] Chests do not spawn inside trees or mountain bases
 
 ### Phase 6 Tests (add after visual validation)

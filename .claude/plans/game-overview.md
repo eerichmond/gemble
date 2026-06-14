@@ -34,15 +34,16 @@ Add `stats.js` in Phase 0 and leave it in permanently during development. Remove
 ## World Layout (Final Vision — Build toward this)
 
 ```
-         N (spawn)
-    [dense forest]
-    [forest + road winding south]
-    [city entrance]
-    [abandoned city — gem here]
+         N (crystals z≈+238)
+    [dense forest — player spawns here at z=0]
+    [forest + road winding south, passes z=+20 east of spawn]
+    [road reaches z=-248 — city entrance]
+    [flat city extension z=-260 to z=-440 — same green, flat ground]
+    [abandoned city — buildings, gem here around z=-330]
          S
 ```
 
-500×500 unit world. The road winds from the forest into the city. No trees in city zone. Gem is at the apartment building.
+Main terrain: 500×500 unit rolling hills. City zone: separate flat 160×200 plane extending south from z=-260, flush with main terrain at join. Road runs from crystal formation (north) through forest and into flat city zone. Gem is at the apartment building (~z=-330).
 
 ---
 
@@ -64,7 +65,7 @@ gemble/
     ├── player.ts            # camera movement + collision  [Phase 1]
     ├── player.test.ts       # unit tests — movement, collision, clamp  [Phase 1]
     ├── input.ts             # keyboard state  [Phase 0]
-    ├── road.ts              # asphalt road  [Phase 3 — not yet built]
+    ├── road.ts              # gravel road + crystals  [Phase 3 ✅]
     ├── city.ts              # buildings, parking, props  [Phase 4 — not yet built]
     ├── gem.ts               # gem geometry + animation  [Phase 4 — not yet built]
     ├── birds.ts             # crows that startle on approach  [Phase 5 — not yet built]
@@ -186,8 +187,8 @@ All props use InstancedMesh. Accepts `mountainObstacles` to keep props out of mo
 
 ### `src/scene.ts` — Nighttime lighting ✅ DONE (commit 7366500)
 Night sky and moonlight were applied directly in `scene.ts` rather than a separate `atmosphere.ts` module — simpler and no reason to separate it. Current state:
-- `scene.background = new THREE.Color(0x1a2a4a)` — dark navy night sky
-- `scene.fog = new THREE.FogExp2(0x1a2a4a, 0.004)` — light fog matching sky (density increase still pending)
+- `scene.background = new THREE.Color(0x1e3564)` — dusk blue sky (lightened from `0x1a2a4a` per user feedback — deep night was too dark)
+- `scene.fog = new THREE.FogExp2(0x1e3564, 0.004)` — light fog matching sky (density increase still pending)
 - `AmbientLight(0x9aaec8, 0.5)` — cool blue-grey moonlight fill
 - `DirectionalLight(0xd0ddf0, 0.85)` — cool white moon directional, casts shadows
 - 4 cloud groups: `IcosahedronGeometry(1,1)` blobs at y=142–152, color `0xc8d4e8`
@@ -212,32 +213,31 @@ No pure functions to test in props or atmosphere. Skip.
 
 ---
 
-## Phase 3 — Road ✅ COMPLETE (commit TBD)
+## Phase 3 — Road ✅ COMPLETE
 
-**Goal:** A two-lane asphalt road with a yellow centerline winds from the forest southward. Following it feels like discovering a path.
+**Goal:** A gravel road winds from the forest northward to a crystal formation and southward toward the city entrance. Following it feels like discovering a path.
 
 **New files:** `src/road.ts`
 
 **Implementation notes:**
 - Road runs full map length: north end at `[20, 238]` (crystal formation), south end at `[4, −248]` (city entrance)
 - 15 waypoints, gentle S-curve through the forest passing ~18 units east of spawn — visible to the right when facing south
-- Road width: 12 units (two comfortable lanes)
-- `buildRibbon()` + `buildDashes()` both use `roadSurfaceH()`: samples terrain at left, center, right across full road width and takes the max. Prevents grass poking through even on rolling hills.
-- UV V accumulates arc length so the asphalt texture tiles cleanly along curves without stretching
-- White edge lines: `0.4` units wide, `0xd0d0d0`; Yellow dashes: `0.36` wide, 2.5 on / 4.0 gap, `0xd4aa00`
-- All markings use `Y_MARK = Y_ROAD + 0.03` so they always sit above the road surface
-- Asphalt canvas texture: `256×256`, dark gray `#242424` base + 5000 aggregate speckles
-- `getRoadObstacles()` exports CircleObstacle[] (spine sampled every 4 units, radius 10) — called in `main.ts` before trees/props so vegetation is kept clear of the road corridor
-- Crystal formation at north end: 9 dark blue-green `ConeGeometry(r, h, 4)` spikes (heights 38–62 units, ~half mountain height), buried 20% underground, varied tilts, `emissive: 0x040e0a` subtle glow. Blocks the road, signals this direction leads nowhere safe.
+- Road width: 12 units. Gravel surface (not asphalt). No yellow centerline.
+- **Terrain conformance approach** — `buildRibbon()` uses **7 columns** across the road width (`cols=7`), creating 1×2 unit quads. Each vertex independently calls `getHeightAt(vx, vz) + Y_ROAD` for its own terrain height. This prevents both grass poking through (fine quads catch all terrain peaks within 5-unit terrain mesh spacing) and road floating (no MAX across road width — road banks naturally with terrain cross-slope). Y_ROAD=0.18 for small clearance. Spine sampled every 1 unit for dense longitudinal conformance.
+- **Dark gray edge lines** at ±(ROAD_HALF − LINE_HALF): `0.6` units wide, color `0x555555`, `Y_LINE = Y_ROAD + 0.04`. Use 2-column ribbon (fine enough for narrow strips).
+- UV V accumulates arc length so the gravel texture tiles cleanly along curves without stretching
+- Gravel canvas texture: `256×256`, warm brownish-gray `#8a7a68` base + 5000 aggregate speckles with warm-tone variation
+- `getRoadObstacles()` exports `CircleObstacle[]` (spine sampled every 4 units, radius 10) — called in `main.ts` before trees/props so vegetation is kept clear of the road corridor
+- **Crystal formation** at north end: 10 **light white-pink** `ConeGeometry(r, h, 3)` spikes (3-sided = triangular cross-section, jagged). Heights 68–92 units (~¾ mountain height), buried 25% underground, varied tilts. Colors `0xffe8f5` / `0xfff0fa` / `0xfce4f0` / `0xfff5fc`, `emissive: 0x100808` pale pink glow. Blocks the road, signals this direction leads nowhere safe.
 - No collision barrier on road — player walks freely on and off it
 
 ### Phase 3 Visual Checklist
 - [x] Road visible from spawn to the east (right of player view)
-- [x] Dark asphalt surface, white edge lines, yellow center dashes
-- [x] Road follows terrain — no grass poking through, no dashes dipping below
+- [x] Gravel surface, dark gray edge lines, no centerline
+- [x] Road follows terrain contours — no grass poking through, no road floating
 - [x] Trees and props cleared from road corridor
 - [x] Road runs full map length (north crystals → south city entrance)
-- [x] Crystal formation at north end — dark jagged spikes block the road
+- [x] Crystal formation at north end — light white-pink jagged triangular spikes block the road
 
 ---
 
@@ -246,10 +246,19 @@ No pure functions to test in props or atmosphere. Skip.
 **Goal:** Follow the road south and arrive in a small abandoned city. Find the glowing gem near the apartment building.
 
 **New files:** `src/city.ts`, `src/gem.ts`  
-**Modified files:** `src/trees.ts` (exclude city zone), `src/player.ts` (add building collision), `src/main.ts`
+**Modified files:** `src/terrain.ts` (flat city extension), `src/trees.ts` (exclude city zone), `src/player.ts` (add building collision), `src/main.ts`
+
+### Flat city terrain extension
+
+The existing 500×500 terrain has rolling hills everywhere — the city needs flat ground so buildings sit level. Rather than flattening the existing terrain, **extend the map southward** with a separate flat ground plane:
+
+- `PlaneGeometry(160, 200)` rotated to XZ, centered at `(0, cityGroundY, -350)` where `cityGroundY` is the terrain height at `(0, -260)` (road arrival point). This makes the flat zone flush with the terrain where the road enters.
+- Same `MeshLambertMaterial` color `0x6a9a58` and ground texture as the main terrain (identical `createGroundTexture()` texture, same tile repeat ratio). Visually matches the forest floor, just flat.
+- Zone spans `x: [-80, 80]`, `z: [-260, -440]` — sized to contain all city buildings with room for streets and periphery.
+- `getHeightAt(x, z)` already uses a raycaster. The raycaster must intersect BOTH the main terrain mesh and the flat city extension — pass both meshes to the raycaster (or use `scene` intersection with both objects in the array).
 
 ### `src/city.ts`
-City center around `(0, y, -300)`. No trees inside `[-60, 60] × [-260, -380]`.
+City center around `(0, cityGroundY, -330)`. No trees inside `[-80, 80] × [-260, -440]` (matches flat extension zone).
 
 **Buildings:**
 

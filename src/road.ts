@@ -200,43 +200,48 @@ function buildRibbon(
   return geo;
 }
 
-// Light white-pink triangular crystal formation at the north end of the road.
+// Light pink square-pyramid crystal formation at the north end of the road.
+// Pyramids are ~deciduous-tree height, wide base tapering to a point, covering the road.
 function addCrystals(scene: THREE.Scene, getHeightAt: (x: number, z: number) => number): void {
   const northEnd = SPINE[0];
   if (!northEnd) return;
   const [cx, cz] = northEnd;
 
   // [xOff, zOff, baseRadius, height, tiltX, tiltZ, yaw]
+  // xOff is east-west (road spans x≈-6..+6 from cx=20); zOff is north-south.
+  // Heights 14–24 units → visible tip ~12–20 units above ground (≈ deciduous tree height).
+  // Radius 0.4–0.5 × height gives chunky pyramid proportions.
   type CrystalDef = readonly [number, number, number, number, number, number, number];
   const defs: CrystalDef[] = [
-    [0, 0, 4.0, 92, 0.1, 0.0, 0.4],
-    [-7, 3, 3.0, 80, -0.22, 0.18, 1.1],
-    [8, -2, 2.8, 88, 0.28, -0.15, 2.3],
-    [-12, -4, 2.4, 72, 0.15, 0.3, 0.8],
-    [5, 9, 3.5, 84, -0.12, 0.22, 1.8],
-    [13, 5, 2.0, 70, 0.3, -0.24, 3.1],
-    [-6, -10, 2.8, 76, -0.24, -0.12, 2.6],
-    [14, -8, 2.2, 68, 0.18, 0.28, 0.2],
-    [-15, 7, 1.8, 74, -0.16, 0.24, 1.5],
-    [2, -14, 2.5, 78, 0.2, -0.18, 3.5],
+    [0, 0, 10, 24, 0.04, 0.0, 0.3], // large central pyramid, road center
+    [-5, 1, 8, 20, -0.06, 0.05, 0.9], // left lane
+    [5, -1, 7, 22, 0.07, -0.04, 1.8], // right lane
+    [-9, 2, 8, 18, 0.05, 0.08, 2.4], // left road edge
+    [9, -2, 9, 20, -0.06, 0.05, 0.1], // right road edge
+    [-13, 0, 6, 16, 0.1, -0.07, 3.0], // outside left
+    [13, 1, 7, 18, -0.08, 0.06, 1.4], // outside right
+    [2, -5, 6, 16, -0.05, -0.06, 2.0], // south accent
+    [-4, -7, 7, 19, 0.07, 0.09, 2.7], // south-left
+    [7, 4, 5, 14, 0.1, -0.08, 0.6], // north-right accent
+    [-8, 5, 5, 15, -0.08, 0.1, 1.7], // north-left accent
   ];
 
-  // Light white-pink shades — soft crystal glow
+  // Light pink shades
   const colors = [0xffe8f5, 0xfff0fa, 0xfce4f0, 0xfff5fc];
 
   defs.forEach(([xOff, zOff, radius, height, tiltX, tiltZ, yaw], idx) => {
     const wx = cx + xOff;
     const wz = cz + zOff;
     const groundY = getHeightAt(wx, wz);
-    // 3 sides = triangular cross-section — jagged, clearly non-spherical
-    const geo = new THREE.ConeGeometry(radius, height, 3);
+    // 4 sides = square pyramid cross-section — chunky, clearly pyramid-shaped
+    const geo = new THREE.ConeGeometry(radius, height, 4);
     const mat = new THREE.MeshLambertMaterial({
       color: colors[idx % colors.length],
       emissive: 0x100808,
     });
     const mesh = new THREE.Mesh(geo, mat);
-    // Bury base 25% underground so crystals look like they erupted from the ground
-    mesh.position.set(wx, groundY + height * 0.35, wz);
+    // Bury base 20% underground so pyramids appear to erupt from the ground
+    mesh.position.set(wx, groundY + height * 0.4, wz);
     mesh.rotation.set(tiltX, yaw, tiltZ);
     mesh.castShadow = true;
     scene.add(mesh);

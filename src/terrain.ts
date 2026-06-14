@@ -122,8 +122,9 @@ function addMountains(scene: THREE.Scene, getHeightAt: HeightFn): CircleObstacle
   // FUTURE Phase 2: material color updated to dark purple silhouette 0x150d25
   const material = new THREE.MeshLambertMaterial({ color: 0x2a3a4a });
 
-  const angles = [15, 55, 100, 145, 200, 240, 290, 335];
-  const radii = [235, 240, 228, 242, 238, 230, 244, 236];
+  // angle=15 removed — its left peak at ~[39,239] collided with the crystal formation
+  const angles = [55, 100, 145, 200, 240, 290, 335];
+  const radii = [240, 228, 242, 238, 230, 244, 236];
   // Cones are buried 40% underground, so the visible cross-section at ground level
   // = base_radius × 0.6 ≈ 31–43 units. Use 37 (average) so the player stops right
   // at the mountain surface without a large invisible buffer.

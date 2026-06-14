@@ -2,15 +2,18 @@ import * as THREE from 'three';
 import { isKeyDown } from './input';
 import type { TreePosition } from './trees';
 import type { CircleObstacle } from './terrain';
+import type { BuildingBox } from './city';
 
 const TURN_SPEED = 1.8; // radians per second
 const MOVE_SPEED = 8; // units per second
 const PLAYER_HEIGHT = 1.7; // camera eye height above ground
 const COLLISION_RADIUS = 0.5; // player body radius for collision
-const WORLD_LIMIT = 240; // clamp position to ±240 (terrain is ±250)
+const WORLD_LIMIT = 240; // clamp X and north Z to ±240 (terrain is ±250)
+const SOUTH_LIMIT = 435; // city extends further south to z≈-440
 
 export interface PlayerResult {
   update: (dt: number) => void;
+  setPosition: (x: number, z: number) => void;
 }
 
 // --- Pure helper functions (no Three.js — safe to unit test in Node) ---
@@ -47,20 +50,33 @@ export function clampToWorld(x: number, z: number, limit: number): { x: number; 
     z: Math.max(-limit, Math.min(limit, z)),
   };
 }
-// FUTURE Phase 4: add isBlockedByBuilding(x, z, boxes, radius) pure helper here
+export function isBlockedByBuilding(
+  x: number,
+  z: number,
+  boxes: BuildingBox[],
+  radius: number,
+): boolean {
+  for (const b of boxes) {
+    if (x + radius > b.minX && x - radius < b.maxX && z + radius > b.minZ && z - radius < b.maxZ) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // --- Stateful player controller ---
 
-// FUTURE Phase 4: add buildingBoxes: BuildingBox[] parameter for city collision
 export function createPlayer(
   camera: THREE.PerspectiveCamera,
   getHeightAt: (x: number, z: number) => number,
   treePositions: TreePosition[] = [],
   mountainObstacles: CircleObstacle[] = [],
+  buildingBoxes: BuildingBox[] = [],
 ): PlayerResult {
   let yaw = 0;
+  // Temporary city-debug spawn — original: posX=0, posZ=0
   let posX = 0;
-  let posZ = 0;
+  let posZ = -268;
 
   // Place camera at spawn height immediately
   camera.position.set(posX, getHeightAt(posX, posZ) + PLAYER_HEIGHT, posZ);
@@ -78,20 +94,19 @@ export function createPlayer(
       let newX = posX + dx;
       let newZ = posZ + dz;
 
-      // World boundary
-      const clamped = clampToWorld(newX, newZ, WORLD_LIMIT);
-      newX = clamped.x;
-      newZ = clamped.z;
+      // World boundary — city extends further south than forest terrain
+      newX = Math.max(-WORLD_LIMIT, Math.min(WORLD_LIMIT, newX));
+      newZ = Math.max(-SOUTH_LIMIT, Math.min(WORLD_LIMIT, newZ));
 
-      // Tree and mountain collision — only update position if the candidate is clear
+      // Tree, mountain, and building collision
       if (
         !isBlockedByTree(newX, newZ, treePositions, COLLISION_RADIUS) &&
-        !isBlockedByTree(newX, newZ, mountainObstacles, COLLISION_RADIUS)
+        !isBlockedByTree(newX, newZ, mountainObstacles, COLLISION_RADIUS) &&
+        !isBlockedByBuilding(newX, newZ, buildingBoxes, COLLISION_RADIUS)
       ) {
         posX = newX;
         posZ = newZ;
       }
-      // FUTURE Phase 4: also check isBlockedByBuilding(newX, newZ, buildingBoxes, COLLISION_RADIUS)
     }
 
     // Stick camera to terrain surface
@@ -103,5 +118,10 @@ export function createPlayer(
     camera.rotation.set(0, yaw, 0, 'YXZ');
   }
 
-  return { update };
+  function setPosition(x: number, z: number): void {
+    posX = x;
+    posZ = z;
+  }
+
+  return { update, setPosition };
 }

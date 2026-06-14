@@ -25,17 +25,29 @@ export function computeTerrainHeight(x: number, z: number): number {
 }
 
 export function createTerrain(scene: THREE.Scene): TerrainResult {
-  const geometry = new THREE.PlaneGeometry(500, 500, 100, 100);
+  // Extend 200 units south vs. the original 500×500 to cover the city zone.
+  // translate(0, 100, 0) shifts the plane before rotation so after rotateX
+  // the Z range becomes [-450, +250] (city sits at z:[-260,-440]).
+  const geometry = new THREE.PlaneGeometry(500, 700, 100, 140);
+  geometry.translate(0, 100, 0);
 
   // Rotate flat XY plane to lie on XZ (the ground plane)
   geometry.rotateX(-Math.PI / 2);
 
-  // Apply height to each vertex using the pure height function
+  // Apply height to each vertex.
+  // South of z=-180 the amplitude fades so the city zone (z < -260) is
+  // gently rolling rather than dramatic hills — buildings can sit flush.
   const positions = geometry.attributes['position'] as THREE.BufferAttribute;
   for (let i = 0; i < positions.count; i++) {
     const x = positions.getX(i);
     const z = positions.getZ(i);
-    positions.setY(i, computeTerrainHeight(x, z));
+    const rawH = computeTerrainHeight(x, z);
+    if (z < -180) {
+      const flattenT = Math.min(1, (-z - 180) / 80); // 0 at z=-180, 1.0 at z=-260+
+      positions.setY(i, rawH * (1 - flattenT * 0.92)); // ≈8% amplitude in city
+    } else {
+      positions.setY(i, rawH);
+    }
   }
   positions.needsUpdate = true;
   geometry.computeVertexNormals();

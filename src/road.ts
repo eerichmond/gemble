@@ -8,6 +8,9 @@ const Y_ROAD = 0.18;
 const Y_LINE = Y_ROAD + 0.04; // edge lines sit just above road surface
 const LINE_HALF = 0.3; // half-width of edge line strips
 
+// City asphalt road is 1.5× the gravel width (two marked lanes).
+const CITY_ROAD_HALF = ROAD_HALF * 1.5; // 9 units
+
 // Road runs the full map length: crystals at north end (z≈+238), city at south end (z≈−248).
 // Passes ~15 units east of spawn so it's visible on the right when facing south.
 const SPINE: ReadonlyArray<readonly [number, number]> = [
@@ -23,9 +26,18 @@ const SPINE: ReadonlyArray<readonly [number, number]> = [
   [-24, -125],
   [-18, -158],
   [-5, -188],
-  [10, -216],
-  [14, -245],
-  [4, -248], // south end — city entrance
+  [4, -216],  // aligned with city road, smooth approach
+  [4, -248], // south end — gravel ends / asphalt begins
+] as const;
+
+// City extension: asphalt two-lane road, same starting point as gravel end.
+const CITY_SPINE: ReadonlyArray<readonly [number, number]> = [
+  [4, -248], // joins gravel road end for seamless connection
+  [4, -265],
+  [4, -290], // near gas station / grocery cross-street
+  [4, -340], // apartment zone
+  [4, -395],
+  [4, -440], // city south end
 ] as const;
 
 // Export road centerline obstacles so trees/props are placed clear of the road.
@@ -75,6 +87,40 @@ export function createRoad(
   );
 
   addCrystals(scene, getHeightAt);
+
+  // ── City asphalt section ─────────────────────────────────────────────────
+  // Starts at the same spine point as the gravel end ([4,-248]).
+  // Y offsets are all raised by 0.03 above the gravel surface so the asphalt
+  // sits on top of the gravel edge at the junction — no z-fighting.
+  // Width is 1.5× gravel (18 units total = two lanes).
+  const CITY_Y = Y_ROAD + 0.03;       // asphalt surface
+  const CITY_Y_DASH = CITY_Y + 0.08;  // centre dashes above asphalt
+  const CITY_Y_EDGE = CITY_Y + 0.04;  // shoulder lines above asphalt
+  const cityPts = sampleSpine(CITY_SPINE, 1.0);
+
+  const asphaltMat = new THREE.MeshLambertMaterial({ color: 0x1e1e1e });
+  scene.add(new THREE.Mesh(
+    buildRibbon(cityPts, getHeightAt, 0, CITY_ROAD_HALF, CITY_Y, 6, 9),
+    asphaltMat,
+  ));
+
+  // Yellow dashed centre divider (between the two lanes)
+  const dashMat = new THREE.MeshLambertMaterial({ map: buildDashTexture() });
+  scene.add(new THREE.Mesh(
+    buildRibbon(cityPts, getHeightAt, 0, 0.25, CITY_Y_DASH, 8, 2),
+    dashMat,
+  ));
+
+  // White shoulder lines at each road edge
+  const cityLineMat = new THREE.MeshLambertMaterial({ color: 0xbbbbbb });
+  scene.add(new THREE.Mesh(
+    buildRibbon(cityPts, getHeightAt, -(CITY_ROAD_HALF - LINE_HALF), LINE_HALF, CITY_Y_EDGE, 4, 2),
+    cityLineMat,
+  ));
+  scene.add(new THREE.Mesh(
+    buildRibbon(cityPts, getHeightAt, CITY_ROAD_HALF - LINE_HALF, LINE_HALF, CITY_Y_EDGE, 4, 2),
+    cityLineMat,
+  ));
 }
 
 // Sample the spine at regular intervals (~step world units per point).
@@ -246,6 +292,23 @@ function addCrystals(scene: THREE.Scene, getHeightAt: (x: number, z: number) => 
     mesh.castShadow = true;
     scene.add(mesh);
   });
+}
+
+// Yellow-dashed centre-line texture: yellow dash (~60%) then dark gap (~40%).
+// With uvTile=8 in buildRibbon this gives ≈4.8-unit dashes and ≈3.2-unit gaps.
+function buildDashTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 4;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#1e1e1e'; // gap matches asphalt
+  ctx.fillRect(0, 0, 4, 128);
+  ctx.fillStyle = '#f0cc00'; // yellow dash
+  ctx.fillRect(0, 0, 4, 76); // 76/128 ≈ 59% of each repeat = 4.7 world units
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  return tex;
 }
 
 // Procedural gravel texture: warm light brownish-gray base with aggregate speckles.

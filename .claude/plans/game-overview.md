@@ -36,14 +36,14 @@ Add `stats.js` in Phase 0 and leave it in permanently during development. Remove
 ```
          N (crystals z≈+238)
     [dense forest — player spawns here at z=0]
-    [forest + road winding south, passes z=+20 east of spawn]
-    [road reaches z=-248 — city entrance]
-    [flat city extension z=-260 to z=-440 — same green, flat ground]
+    [forest + road winding south, passes z=+18 east of spawn]
+    [road reaches z=-248 — gravel ends, asphalt begins]
+    [city zone z=-248 to z=-440 — terrain gradually flattens south of z=-180]
     [abandoned city — buildings, gem here around z=-330]
          S
 ```
 
-Main terrain: 500×500 unit rolling hills. City zone: separate flat 160×200 plane extending south from z=-260, flush with main terrain at join. Road runs from crystal formation (north) through forest and into flat city zone. Gem is at the apartment building (~z=-330).
+Main terrain: 500×700 unit mesh (translated south via `geometry.translate(0,100,0)` before rotateX). Terrain amplitude flattens gradually south of z=-180 using `flattenT = min(1, (-z-180)/80)` — full hills at z=-180, ~8% amplitude at z=-260 and beyond. No separate city ground plane. Road: gravel from north to z=-248, then wider black asphalt through city to z=-440. Gem is at the apartment building north face (~z=-321).
 
 ---
 
@@ -221,7 +221,7 @@ No pure functions to test in props or atmosphere. Skip.
 
 **Implementation notes:**
 - Road runs full map length: north end at `[20, 238]` (crystal formation), south end at `[4, −248]` (city entrance)
-- 15 waypoints, gentle S-curve through the forest passing ~18 units east of spawn — visible to the right when facing south
+- 14 waypoints, gentle S-curve through the forest passing ~18 units east of spawn — visible to the right when facing south. Final 2 points are `[4, -216]` → `[4, -248]` (straight south approach to city, no sharp dog-leg)
 - Road width: 12 units. Gravel surface (not asphalt). No yellow centerline.
 - **Terrain conformance approach** — `buildRibbon()` uses **7 columns** across the road width (`cols=7`), creating 1×2 unit quads. Each vertex independently calls `getHeightAt(vx, vz) + Y_ROAD` for its own terrain height. This prevents both grass poking through (fine quads catch all terrain peaks within 5-unit terrain mesh spacing) and road floating (no MAX across road width — road banks naturally with terrain cross-slope). Y_ROAD=0.18 for small clearance. Spine sampled every 1 unit for dense longitudinal conformance.
 - **Dark gray edge lines** at ±(ROAD_HALF − LINE_HALF): `0.6` units wide, color `0x555555`, `Y_LINE = Y_ROAD + 0.04`. Use 2-column ribbon (fine enough for narrow strips).
@@ -241,79 +241,84 @@ No pure functions to test in props or atmosphere. Skip.
 
 ---
 
-## Phase 4 — Abandoned City + Gem
+## Phase 4 — Abandoned City + Gem ✅ COMPLETE
 
 **Goal:** Follow the road south and arrive in a small abandoned city. Find the glowing gem near the apartment building.
 
-**New files:** `src/city.ts`, `src/gem.ts`  
-**Modified files:** `src/terrain.ts` (flat city extension), `src/trees.ts` (exclude city zone), `src/player.ts` (add building collision), `src/main.ts`
+**New files:** `src/city.ts`, `src/gem.ts`, `src/audio.ts`  
+**Modified files:** `src/terrain.ts` (extended mesh), `src/road.ts` (asphalt city extension), `src/player.ts` (building collision), `src/main.ts`
 
-### Flat city terrain extension
+### Terrain extension (actual implementation)
 
-The existing 500×500 terrain has rolling hills everywhere — the city needs flat ground so buildings sit level. Rather than flattening the existing terrain, **extend the map southward** with a separate flat ground plane:
+The terrain mesh was extended from 500×500 to 500×700 using `geometry.translate(0, 100, 0)` before `rotateX(-Math.PI/2)`, shifting the mesh south so Z spans [-450, +250]. Terrain amplitude flattens gradually using `flattenT = min(1, (-z-180)/80)` south of z=-180, leaving ~8% amplitude in the city zone. No separate flat ground plane — buildings use `getHeightAt` for their own Y.
 
-- `PlaneGeometry(160, 200)` rotated to XZ, centered at `(0, cityGroundY, -350)` where `cityGroundY` is the terrain height at `(0, -260)` (road arrival point). This makes the flat zone flush with the terrain where the road enters.
-- Same `MeshLambertMaterial` color `0x6a9a58` and ground texture as the main terrain (identical `createGroundTexture()` texture, same tile repeat ratio). Visually matches the forest floor, just flat.
-- Zone spans `x: [-80, 80]`, `z: [-260, -440]` — sized to contain all city buildings with room for streets and periphery.
-- `getHeightAt(x, z)` already uses a raycaster. The raycaster must intersect BOTH the main terrain mesh and the flat city extension — pass both meshes to the raycaster (or use `scene` intersection with both objects in the array).
+`getHeightAt(x, z)` uses a single `Raycaster` against the one terrain mesh — no changes needed.
+
+### `src/road.ts` — City asphalt extension
+
+Gravel road (width 12) ends at `[4, -248]`. Asphalt city road (width 18, 1.5×) starts at the same point and continues to `[4, -440]`. Gravel SPINE now approaches junction from `[4, -216]` → `[4, -248]` (straight south approach, no sharp dog-leg). Asphalt sits 0.03 units above gravel at the junction to prevent z-fighting. Yellow dashed center line + white shoulder lines on asphalt.
 
 ### `src/city.ts`
-City center around `(0, cityGroundY, -330)`. No trees inside `[-80, 80] × [-260, -440]` (matches flat extension zone).
+City center around `(4, terrain, -330)`. Road center is `x=4`, road spans `x:[-5, 13]`. All buildings are set back from road edges with clearance.
 
-**Buildings:**
+**Buildings (all have windows + doors on all 4 faces — 'wens'):**
 
-| Building | Geometry | Position | Color |
+| Building | Position | Dims (w×d×h) | Color |
 |---|---|---|---|
-| Gas station | Flat body + canopy + pump boxes | `(-22, y, -285)` | `0x8a7a5a` weathered beige |
-| Grocery store | Wide flat storefront | `(20, y, -285)` | `0x6a6a5a` |
-| Parking lot | Dark asphalt plane + faded space lines | In front of grocery | `0x252525` |
-| Apartment building | Tall 10-floor block | `(25, y, -330)` | `0x5a5a6a` grey-blue |
-| House 1 | Body + triangular prism roof + yard | `(-18, y, -335)` | `0x6a5a4a` faded brown |
-| House 2 | Same, slightly larger | `(-14, y, -360)` | `0x5a6a5a` faded grey-green |
+| Gas station | `(-22, y, -285)` | 14×10×5 | `0x8a7a5a` weathered beige |
+| Grocery store | `(28, y, -285)` | 24×16×7 | `0x6a6a5a` (moved from x=20 — was overlapping road) |
+| Apartment | `(25, y, -330)` | 20×15×25 | `0x5a5a6a` grey-blue, 10 window rows |
+| House 1 | `(-18, y, -335)` | 10×8×4.5 + roof 3.5 | `0x6a5a4a` faded brown |
+| House 2 | `(-14, y, -360)` | 12×9×5.0 + roof 3.5 | `0x5a6a5a` faded grey-green |
+| House 3 | `(-21, y, -385)` | 11×9×4.5 + roof 3.0 | `0x7a6040` warm brown |
+| Commercial 1 | `(27, y, -385)` | 15×11×7 | `0x6a5a5a` |
+| Commercial 2 | `(-22, y, -410)` | 16×11×7 | `0x606050` |
+| House 4 | `(29, y, -410)` | 10×8×4.5 + roof 3.5 | `0x3a5040` |
+| House 5 | `(-18, y, -430)` | 9×7×4.0 + roof 2.5 | `0x4a3830` |
+| Tall building | `(28, y, -430)` | 14×12×14, 4 window rows | `0x4a506a` |
 
-- Windows: near-black `PlaneGeometry` planes (offset 0.01 to prevent Z-fighting) — darkness signals abandonment
-- Stop signs: red octagon + grey post at 2–3 intersections
-- Sidewalks: grey `PlaneGeometry` strips
-- Tumbleweed: wireframe `SphereGeometry(0.4, 6, 4)`, color `0x7a6a40`, slowly spinning in place
-- Streetlights: dim `PointLight(0x4a3010, 0.4, 20)` on cylinder poles — barely working
-
-Exports `{ collisionBoxes: BuildingBox[], update(dt: number) }` — `update` spins the tumbleweed
+- E-W cross street removed (was overlapping building footprints)
+- Parking lot: 26×16 asphalt, centered at `(28, y, -268)` in front of grocery
+- Stop signs: 2 at city entrance intersections
+- Tumbleweed: wireframe sphere slowly spinning at `(8, y, -300)`
+- Streetlights: 8 poles at x=±11/−8, z=-282/−310/−380/−420; `PointLight(0xffe080, 3.0, 25)` warm yellow glow
 
 ### `src/gem.ts`
-- `OctahedronGeometry(0.5, 0)` — orange-sized, diamond-like facets
-- `MeshPhongMaterial({ color: 0x6040ff, emissive: 0x300090, specular: 0xffffff, shininess: 150, transparent: true, opacity: 0.85 })`
-- Position: base of apartment building `(25, y, -330)`
-- `PointLight(0x8060ff, 3, 10)` — purple glow visible from down the street
+- `OctahedronGeometry(0.5, 0)`, `MeshPhongMaterial({ color: 0x6040ff, emissive: 0x300090, ... })`
+- Position: `(25, y, -321)` — just north of apartment's north face
+- `PointLight(0x8060ff, 3, 10)` purple glow
+- `CircleObstacle { x: 25, z: -321, radius: 1.5 }` — player can't walk through
 - `update(dt)`: spin Y + bob vertically
-```ts
-// FUTURE: detect proximity < 2 units → trigger collection
-// FUTURE: play sound + show victory screen on pickup
-```
+
+### `src/audio.ts` (new)
+Forest ambient CC0 sound (`/assets/forest-ambient.mp3`). Autoplay on first keydown/click. Volume 0.9.
 
 ### `src/player.ts` additions
-- Building collision: reject candidate position if inside any `BuildingBox` (expanded by `COLLISION_RADIUS`)
-- Pure helper: `export function isBlockedByBuilding(x, z, boxes, radius): boolean`
+- Building collision: `isBlockedByBuilding(x, z, boxes, radius)` — AABB check
+- Player spawn at `posZ = -268` for city debugging (was z=0; restore when done)
 
 ### Phase 4 Visual Checklist
-- [ ] Road leads into city (no gap)
-- [ ] No trees in city area
-- [ ] Gas station and grocery store face each other across main street
-- [ ] Empty parking lot in front of grocery store
-- [ ] Apartment building is tallest structure
-- [ ] All windows near-black — abandoned feel
-- [ ] Stop signs at intersections
-- [ ] Tumbleweed slowly spinning
-- [ ] Dim streetlight glow at corners
-- [ ] Player cannot walk through buildings
-- [ ] Gem visible as purple glow from down the street
-- [ ] Gem spins and bobs at apartment base
-- [ ] Gem NOT visible from forest spawn
+- [x] Road leads into city (no gap — gravel ends, asphalt begins at same point)
+- [x] No trees in city area
+- [x] Gas station (west) and grocery store (east) flank the road entrance
+- [x] Parking lot in front of grocery store
+- [x] Apartment building is tallest structure (25 units)
+- [x] All windows near-black, all 4 faces of every building
+- [x] Stop signs at city entrance
+- [x] Tumbleweed slowly spinning
+- [x] Streetlight warm yellow glow (8 posts)
+- [x] Player cannot walk through buildings
+- [x] Gem visible as purple glow from down the street
+- [x] Gem spins and bobs at apartment north face
+- [x] 11 buildings total extending city south to z=-430
+- [ ] Gem NOT visible from forest spawn (not yet verified)
 
 ### Phase 4 Tests
 ```
 src/city.test.ts    — building collision boxes correct dimensions; AABB rejection
 src/player.test.ts  — add isBlockedByBuilding tests
 ```
+(Tests not yet written — visual validation complete.)
 
 ---
 
@@ -618,20 +623,47 @@ Three.js `CapsuleGeometry` (available since r142, confirmed present in r176) pro
 
 ---
 
-### `src/monsters.ts` (planned — not yet built)
+### Monster design decisions (from visual refinement sessions)
 
-- Places one of each monster type in the world (exact positions TBD)
-- Exports `{ update(dt: number, playerX: number, playerZ: number): void }`
-- Flying Eye floats and bobs; troll and winged monster are initially static (idle pose)
-- Each monster is a `THREE.Group` assembled from the geometry above
+**Palette** — medium blue (not dark navy): `iBody=0x2050a0`, `iMid=0x2e68cc`, `iDark=0x0c1e44`, `iCloth=0x183870`
+
+**Crystal spikes** — 4-sided pyramid (`ConeGeometry(0.095, 0.40, 4)`, `rotation.y = π/4`), steel-blue `iCrystal=0x4a85b5` with emissive `0x1e4d88`. Darker than original baby-blue; not the same as the body.
+
+**Eyes (both troll and winged monster)** — white pointed-oval `ShapeGeometry` (bezier lens). Inner corner DOWN, outer corner UP = angry scowl. Left eye `tiltZ = -0.32`, right eye `tiltZ = +0.32`. (Positive CCW rotation makes the right end go up; for left eye the right side is the inner corner.)
+
+**Crystal Troll arms** — go OUTWARD from shoulders, not inward. Upper arm direction `(side*0.94, 0.34)`; forearm bends up `(side*0.50, 0.87)`. Use `rz = atan2(-dx, dy)` for capsule rotation from a unit direction vector. Three claws fan from the hand in the forearm direction, spread ±0.24 rad perpendicular.
+
+**Dragon wings** — arm spar goes outward to wrist; then 3 finger spars spread SYMMETRICALLY: F1 (up, +spread), F2 (horizontal, furthest out), F3 (down, −spread). F1 and F3 are exact mirrors around the wrist height. Membrane outline: body→wrist→F1 (straight)→scallop→F2→scallop→F3→lower body→close. Scallop control pulled inward (toward body) for concave bat-wing edge.
+
+**Wing membrane `sparBone` helper** — given (x1,y1)→(x2,y2), computes `rz = atan2(-dx/len, dy/len)` and draws a thin capsule at the midpoint. Cleaner than using direction vectors inline.
+
+### `src/monsters.ts` — Flying Eye ✅ DONE (in city)
+
+Flying Eye is implemented in `src/monsters.ts` and wired into `main.ts`. World position: `(0, groundY + 5.0, -310)` — city main intersection, ~5 units above ground (visibly above player). Behavior:
+- Bobs vertically `±0.30` at 1.3 Hz (doubled); drifts side-to-side `±0.80` at 0.35 Hz (doubled)
+- Iris scans (rotation.x, rotation.y) each frame; pupil also rotates
+- **Player tracking**: smooth slerp toward player using `setFromUnitVectors(forward, dir)` at 1.2 rad/s. The eye's local +Z faces the player — iris always looks at them.
+- Purple `PointLight(0x8060ff, 3, 14)` glow
+- Side cones updated: `ConeGeometry(0.10, 0.32, 5)` with quaternion-computed outward orientation
+- Takes `groundY` parameter (not `CITY_GROUND_Y` import — that constant was removed from terrain.ts)
+
+Crystal Troll and Winged Monster: geometry defined in `src/temp/monster-preview.html` (visually validated), not yet added to `src/monsters.ts`.
+
+**Remaining for full Phase 7:**
+- Add Crystal Troll at (35, terrain, 55) — copy geometry from preview
+- Add Winged Monster at (−50, terrain, 80) — copy geometry from preview
+- Export unified `{ update(dt) }` for both
 
 ### Phase 7 Visual Checklist
 
-- [ ] All three monsters visible in the world
-- [ ] Indigo palette consistent across all three
-- [ ] Crystal Troll: stocky, arms raised, crystal spikes visible on head
-- [ ] Flying Eye: floating at ~2.85 units, bobs + slow rotation, glowing iris
-- [ ] Winged Monster: narrow, bat wings with membrane, spiky hair
+- [x] Flying Eye in city — bobs, drifts, tracks player with iris
+- [ ] Crystal Troll placed in forest
+- [ ] Winged Monster placed in forest
+- [ ] Medium-blue palette consistent across all three
+- [ ] Crystal spikes (steel-blue 4-sided pyramids) on troll and winged monster
+- [ ] Angry squinted eyes (inner down, outer up) on troll and winged monster
+- [ ] Troll arms spread outward with fanned claws
+- [ ] Dragon wings with 3 symmetric ridges on winged monster
 - [ ] No fps drop with all three active
 
 ---

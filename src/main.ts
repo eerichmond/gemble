@@ -7,9 +7,12 @@ import { createProps } from './props';
 import { createPlayer } from './player';
 import { initInput } from './input';
 import { createRoad, getRoadObstacles } from './road';
+import { createCity } from './city';
+import { createGem } from './gem';
+import { createCompass } from './compass';
+import { initAudio } from './audio';
+import { createFlyingEye } from './monsters';
 // FUTURE Phase 2: import { applyDuskAtmosphere } from './atmosphere';
-// FUTURE Phase 4: import { createCity } from './city';
-// FUTURE Phase 4: import { createGem } from './gem';
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const { scene, renderer, camera } = initScene(canvas);
@@ -25,14 +28,24 @@ const excludeZones = [...mountainObstacles, ...roadObstacles];
 const { treePositions } = createTrees(scene, getHeightAt, excludeZones);
 createProps(scene, getHeightAt, excludeZones);
 createRoad(scene, getHeightAt);
+
+// Phase 4: city sits directly on the extended terrain mesh
+const { collisionBoxes, update: updateCity } = createCity(scene, getHeightAt);
+
+// Phase 4: gem at the apartment base
+const { update: updateGem, obstacle: gemObstacle } = createGem(scene, getHeightAt);
+
 const { update: updatePlayer } = createPlayer(
   camera,
   getHeightAt,
   treePositions,
-  mountainObstacles,
+  [...mountainObstacles, gemObstacle],
+  collisionBoxes,
 );
-// FUTURE Phase 4: const { collisionBoxes, update: updateCity } = createCity(scene, getHeightAt);
-// FUTURE Phase 4: const { update: updateGem } = createGem(scene, getHeightAt);
+
+const compass = createCompass(camera);
+initAudio();
+const { update: updateFlyingEye } = createFlyingEye(scene, getHeightAt(0, -310));
 
 const clock = new THREE.Clock();
 
@@ -42,7 +55,10 @@ function loop(): void {
 
   const dt = clock.getDelta();
   updatePlayer(dt);
-  // FUTURE Phase 4: updateCity(dt); updateGem(dt);
+  updateCity(dt);
+  updateGem(dt);
+  updateFlyingEye(dt, camera.position.x, camera.position.z);
+  compass.update();
 
   renderer.render(scene, camera);
   stats.end();

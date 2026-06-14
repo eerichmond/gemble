@@ -2,22 +2,25 @@ import * as THREE from 'three';
 
 const ROAD_WIDTH = 12;
 const ROAD_HALF = ROAD_WIDTH / 2;
-const Y_ROAD = 0.06; // road surface sits just above terrain to prevent z-fighting
+// Raise road 0.25 above terrain so it clears the terrain mesh on steep slopes.
+// Higher offset is more reliable on rolling hills; 0.06 was too tight.
+const Y_ROAD = 0.25;
 const Y_MARK = Y_ROAD + 0.02; // markings above road surface
 const EDGE_HALF = 0.2; // half-width of white edge lines
 const DASH_HALF = 0.18; // half-width of center dashes
 const DASH_LEN = 2.5; // length of each yellow dash
 const DASH_PERIOD = 6.5; // dash + gap length
 
-// Spine (x, z) waypoints — road starts ~62 units south of spawn so it's
-// discovered by exploring rather than visible at spawn.
+// Spine (x, z) waypoints — first waypoint at z=−20 so the road is visible
+// just ahead from spawn, then curves gently southwest toward the city.
 const SPINE: ReadonlyArray<readonly [number, number]> = [
-  [0, -62],
-  [-14, -95],
-  [-24, -128],
-  [-18, -158],
-  [-5, -188],
-  [10, -218],
+  [-3, -20],
+  [-10, -52],
+  [-20, -88],
+  [-26, -122],
+  [-20, -155],
+  [-6, -186],
+  [10, -216],
   [14, -245],
   [4, -262],
 ] as const;
@@ -26,7 +29,8 @@ export function createRoad(
   scene: THREE.Scene,
   getHeightAt: (x: number, z: number) => number,
 ): void {
-  const pts = sampleSpine(SPINE, 3);
+  // Sample every 1.5 units for dense terrain-following vertices on rolling hills
+  const pts = sampleSpine(SPINE, 1.5);
 
   const roadMat = new THREE.MeshLambertMaterial({
     map: buildAsphaltTexture(),
@@ -154,7 +158,8 @@ function buildRibbon(
       }
       const b = (i - 1) * 2;
       const t = i * 2;
-      indices.push(b, b + 1, t, b + 1, t + 1, t);
+      // Winding: b→t→b+1 and b+1→t→t+1 gives normals pointing up (+Y)
+      indices.push(b, t, b + 1, b + 1, t, t + 1);
     }
   }
 
@@ -228,7 +233,8 @@ function buildDashes(
           y1,
           z1 - rz * halfW,
         );
-        indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+        // Winding: 0→3→1 and 1→3→2 gives normals pointing up (+Y)
+        indices.push(base, base + 3, base + 1, base + 1, base + 3, base + 2);
 
         phase += draw;
         walked += draw;

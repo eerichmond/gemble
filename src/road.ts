@@ -63,7 +63,7 @@ export function getRoadObstacles(): CircleObstacle[] {
 export function createRoad(
   scene: THREE.Scene,
   getHeightAt: (x: number, z: number) => number,
-): void {
+): { crystalObstacles: CircleObstacle[] } {
   // 1 unit sample step for dense longitudinal terrain conformance.
   const pts = sampleSpine(SPINE, 1.0);
 
@@ -86,7 +86,7 @@ export function createRoad(
     ),
   );
 
-  addCrystals(scene, getHeightAt);
+  const crystalObstacles = addCrystals(scene, getHeightAt);
 
   // ── City asphalt section ─────────────────────────────────────────────────
   // Starts at the same spine point as the gravel end ([4,-248]).
@@ -121,6 +121,8 @@ export function createRoad(
     buildRibbon(cityPts, getHeightAt, CITY_ROAD_HALF - LINE_HALF, LINE_HALF, CITY_Y_EDGE, 4, 2),
     cityLineMat,
   ));
+
+  return { crystalObstacles };
 }
 
 // Sample the spine at regular intervals (~step world units per point).
@@ -248,9 +250,12 @@ function buildRibbon(
 
 // Light pink square-pyramid crystal formation at the north end of the road.
 // Pyramids are ~deciduous-tree height, wide base tapering to a point, covering the road.
-function addCrystals(scene: THREE.Scene, getHeightAt: (x: number, z: number) => number): void {
+function addCrystals(
+  scene: THREE.Scene,
+  getHeightAt: (x: number, z: number) => number,
+): CircleObstacle[] {
   const northEnd = SPINE[0];
-  if (!northEnd) return;
+  if (!northEnd) return [];
   const [cx, cz] = northEnd;
 
   // [xOff, zOff, baseRadius, height, tiltX, tiltZ, yaw]
@@ -274,13 +279,15 @@ function addCrystals(scene: THREE.Scene, getHeightAt: (x: number, z: number) => 
 
   // Light pink shades
   const colors = [0xffe8f5, 0xfff0fa, 0xfce4f0, 0xfff5fc];
+  const obstacles: CircleObstacle[] = [];
 
   defs.forEach(([xOff, zOff, radius, height, tiltX, tiltZ, yaw], idx) => {
     const wx = cx + xOff;
     const wz = cz + zOff;
     const groundY = getHeightAt(wx, wz);
-    // 4 sides = square pyramid cross-section — chunky, clearly pyramid-shaped
+    // 4 sides; rotateY(PI/4) aligns flat faces outward for a true square-pyramid look
     const geo = new THREE.ConeGeometry(radius, height, 4);
+    geo.rotateY(Math.PI / 4);
     const mat = new THREE.MeshLambertMaterial({
       color: colors[idx % colors.length],
       emissive: 0x100808,
@@ -291,7 +298,10 @@ function addCrystals(scene: THREE.Scene, getHeightAt: (x: number, z: number) => 
     mesh.rotation.set(tiltX, yaw, tiltZ);
     mesh.castShadow = true;
     scene.add(mesh);
+    obstacles.push({ x: wx, z: wz, radius });
   });
+
+  return obstacles;
 }
 
 // Yellow-dashed centre-line texture: yellow dash (~60%) then dark gap (~40%).

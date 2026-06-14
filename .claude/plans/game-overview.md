@@ -72,7 +72,8 @@ gemble/
     ├── monsters.ts          # flying eye  [Phase 7 partial ✅]
     ├── compass.ts           # HUD compass  [Phase 4 ✅]
     ├── birds.ts             # crow groups that startle on approach  [Phase 5 ✅]
-    └── chests.ts            # treasure chests, Space to open  [Phase 6 ✅]
+    ├── chests.ts            # treasure chests, armor loot, open/close  [Phase 6 ✅]
+    └── capybaras.ts         # 10 grazing capybaras in 3 groups  [Phase 8 ✅]
 ```
 
 ---
@@ -231,8 +232,9 @@ No pure functions to test in props or atmosphere. Skip.
 - UV V accumulates arc length so the gravel texture tiles cleanly along curves without stretching
 - Gravel canvas texture: `256×256`, warm brownish-gray `#8a7a68` base + 5000 aggregate speckles with warm-tone variation
 - `getRoadObstacles()` exports `CircleObstacle[]` (spine sampled every 4 units, radius 10) — called in `main.ts` before trees/props so vegetation is kept clear of the road corridor
-- **Crystal formation** at north end: 10 **light white-pink** `ConeGeometry(r, h, 3)` spikes (3-sided = triangular cross-section, jagged). Heights 68–92 units (~¾ mountain height), buried 25% underground, varied tilts. Colors `0xffe8f5` / `0xfff0fa` / `0xfce4f0` / `0xfff5fc`, `emissive: 0x100808` pale pink glow. Blocks the road, signals this direction leads nowhere safe.
-- No collision barrier on road — player walks freely on and off it
+- **Crystal formation** at north end: 11 **light white-pink** `ConeGeometry(r, h, 4)` pyramids with `rotateY(PI/4)` so flat faces point outward (true square-pyramid silhouette, not diamond-edged). Heights 14–24 units, base radii 5–10 units, buried 20% underground, varied tilts. Colors `0xffe8f5` / `0xfff0fa` / `0xfce4f0` / `0xfff5fc`, `emissive: 0x100808` pale pink glow. Blocks the road end.
+- **Crystal collision**: `addCrystals` returns `CircleObstacle[]` (one per crystal, radius = base radius). `createRoad` returns `{ crystalObstacles }`, wired into `createPlayer` in `main.ts` so player cannot walk through any crystal.
+- No collision barrier on the road surface itself — player walks freely on and off it
 
 ### Phase 3 Visual Checklist
 - [x] Road visible from spawn to the east (right of player view)
@@ -240,7 +242,7 @@ No pure functions to test in props or atmosphere. Skip.
 - [x] Road follows terrain contours — no grass poking through, no road floating
 - [x] Trees and props cleared from road corridor
 - [x] Road runs full map length (north crystals → south city entrance)
-- [x] Crystal formation at north end — light white-pink jagged triangular spikes block the road
+- [x] Crystal formation at north end — light white-pink square-pyramid spikes block the road; player cannot walk through them
 
 ---
 
@@ -360,7 +362,7 @@ src/player.test.ts  — add isBlockedByBuilding tests
 | `startled` | player within **5 units** of any bird in group | **entire group startles at once**; plays `crow-caw.wav`; birds scatter in evenly-spread directions; 6 Hz panic flap; lifts 3 units over 0.5 s |
 | `flying` | after 0.5 s | 4 Hz rhythmic flap; 10 u/s horizontal; climbs 5 u/s for 2 s then levels; faces `flightDir` via `atan2`; disposed when 150 units from spawn |
 
-**Audio:** `public/assets/crow-caw.wav` (CC0, OpenGameArt). One caw plays per group startle via `new Audio('/assets/crow-caw.wav').play()`.
+**Audio:** `public/assets/crow-caw.wav` (CC0, OpenGameArt). Three caws play sequentially per group startle — `ended` event re-triggers the same `Audio` object twice after first play.
 
 **Exports:**
 - `shouldStartle(birdX, birdZ, playerX, playerZ, radius): boolean` — pure helper, testable
@@ -619,67 +621,42 @@ Crystal Troll and Winged Monster: geometry defined in `src/temp/monster-preview.
 
 ---
 
-## Phase 8 — Capybaras
+## Phase 8 — Capybaras ✅ DONE
 
 **Goal:** Add ~10 capybaras grazing in the forest, grouped in clusters of 3–4. They are visual-only (no AI). Each slowly bobs its head as if eating from the ground, adding life and charm to the world.
 
 **New files:** `src/capybaras.ts`  
 **Modified files:** `src/main.ts` (import + wire `updateCapybaras`)
 
-### Design
+### `src/capybaras.ts` — actual implementation
 
-**Groups:** 3 groups — two groups of 3 (1 large + 2 small each), one group of 4 (2 large + 2 small). Placed using seeded LCG (seed 88) in the forest zone, 25+ units from each other, away from mountains and road.
+**Groups:** 3 groups — `[true,true,false]`, `[true,true,false]`, `[true,true,false,false]` (true=large, false=small) = 10 total. Seeded LCG seed 88.
 
 **Per-capybara geometry — all `BoxGeometry`, fully blocky:**
 
-| Part | Geometry | Material | Position (local) | Notes |
+| Part | Geometry | Material | Position in root/headGroup | Notes |
 |---|---|---|---|---|
-| Body | `BoxGeometry(W, H, L)` large: `(1.0, 0.55, 1.8)`; small: `(0.65, 0.38, 1.2)` | brown `0x7a4a1e` | `(0, legH + H/2, 0)` | main torso |
-| Head group | pivot at front-top of body | — | `(0, legH + H, L/2)` | bobs on this group |
-| Head | `BoxGeometry(Hw, Hh, Hl)` large: `(0.70, 0.55, 0.75)`; small: `(0.45, 0.38, 0.50)` | brown | `(0, -Hh/2, Hl/2)` inside group | so pivot is at head base |
-| Ears (×2) | `BoxGeometry(0.12, 0.14, 0.08)` | brown | `(±0.24, +0.28, 0.0)` | small squares on head top |
-| Eyes (×2) | `BoxGeometry(0.08, 0.08, 0.02)` | black `0x111111` | `(±0.18, 0.04, Hl/2 + 0.01)` | flush with head front face |
-| Nose | `BoxGeometry(0.16, 0.10, 0.04)` | brown `0x5a3010` | `(0, -0.14, Hl/2 + 0.01)` | slightly darker square, front face |
-| Legs (×4) | `BoxGeometry(0.12, legH, 0.12)` large: legH=0.40; small: 0.28 | brown `0x5a3010` | corners of body bottom | short stubby stick legs |
+| Body | large: `BoxGeometry(1.00,0.55,1.80)`; small: `(0.65,0.38,1.20)` | brown `0x7a4a1e` | `(0, lH+bH/2, 0)` | |
+| Legs (×4) | large: `BoxGeometry(0.10,0.40,0.10)`; small: `(0.08,0.28,0.08)` | **black** `0x111111` | corners at `(±bW/2+lW/2, lH/2, ±bL/2-lW/2)` | black stick legs |
+| headGroup | pivot | — | `(0, lH+bH, bL/2)` in root | rotation.x bobs 0↔0.35 rad |
+| Head | large: `BoxGeometry(0.70,0.55,0.65)`; small: `(0.48,0.38,0.47)` | brown | `(0, hH/2, hL/2)` in headGroup | extends forward+up from pivot |
+| Ears (×2) | large: `BoxGeometry(0.13,0.16,0.08)`; small: `(0.10,0.12,0.06)` | brown | `(±hW*0.44, hH+eH/2, hL*0.26)` | on top-back of head |
+| Eyes (×2) | large: `0.09` sq; small: `0.07` sq; depth `0.02` | black | `(±hW*0.33, hH*0.62, hL+0.01)` | front face, upper sides |
+| Nose | large: `BoxGeometry(0.18,0.10,0.04)`; small: `(0.14,0.08,0.04)` | dark brown `0x4a2a08` | `(0, hH*0.18, hL+0.02)` | front face, lower-center |
 
-**Sizes:**
-- Large: body `(1.0, 0.55, 1.8)`, head `(0.70, 0.55, 0.75)`, legH=0.40
-- Small: body `(0.65, 0.38, 1.2)`, head `(0.45, 0.38, 0.50)`, legH=0.28
+**Eating animation:** `headGroup.rotation.x = (1 - cos(globalT * bobSpeed + phase)) * 0.175`. Oscillates 0 ↔ 0.35 rad. `bobSpeed` = 0.8–1.4 rad/s (one graze cycle every 4.5–7.8 s). Phase randomized so animals in a group don't nod in sync.
 
-**Eating animation:** Each capybara has a `headGroup` that pivots at the front-top edge of the body. `headGroup.rotation.x` oscillates between `0` (head level) and `+0.35 rad` (head dipped, grazing), driven by `Math.sin(time * speed + phase)` — speed 0.8–1.2 Hz, phase randomized per capybara. Only the head group animates; body stays still.
-
-**Leg positions (local to body group):**
-- Front-left: `(-W/2 + 0.12, 0, L/2 - 0.16)` — bottom of body
-- Front-right: `(+W/2 - 0.12, 0, L/2 - 0.16)`
-- Rear-left: `(-W/2 + 0.12, 0, -L/2 + 0.16)`
-- Rear-right: `(+W/2 - 0.12, 0, -L/2 + 0.16)`
-
-Each leg `BoxGeometry` centered at `(legX, legH/2, legZ)` above the body group origin.
-
-### `src/capybaras.ts` sketch
-
-```ts
-export function createCapybaras(
-  scene: THREE.Scene,
-  getHeightAt: (x: number, z: number) => number,
-  excludeZones: CircleObstacle[] = [],
-): { update: (dt: number) => void }
-```
-
-- Seeded LCG seed 88
-- Three groups: sizes [3, 3, 4] — large slots [0] and [1] per group, rest small
-- Group centers spread throughout forest (`z: [-80..+80]`, `x: [-120..+120]`)
-- Individual capybaras offset ±3–6 units from group center
-- Each capybara: random facing (`rotation.y`), random phase for head bob
+**Placement:** group centers in `x:[-150,150], z:[-130,130]`; 30 u clearance from player spawn `(-52, 130)`; avoid road corridor and city zone; 8 u buffer from excludeZones (mountains + road obstacles). Individuals offset ±5 u from group center.
 
 ### Phase 8 Visual Checklist
 
 - [ ] ~10 capybaras visible in the forest in clusters of 3–4
 - [ ] Large and small sizes clearly distinct
-- [ ] Head bobs smoothly (grazing motion) — not snappy
-- [ ] Brown boxy body, dark stick legs, small square ears
+- [ ] Black stick legs, brown rectangular body and head
+- [ ] Head bobs smoothly (grazing motion) — not snappy, staggered between animals
+- [ ] Small square ears on top-back of head
 - [ ] Tiny black square eyes on head front face
-- [ ] Brown square nose (slightly darker than body)
+- [ ] Dark brown square nose lower on front face
 - [ ] No fps drop with 10 capybaras active
 
 ### Phase 8 Tests (add after visual validation)
@@ -687,6 +664,9 @@ export function createCapybaras(
 ```
 src/capybaras.test.ts — group placement clearance; head bob clamp
 ```
+
+### Phase 6 armor one-time-loot fix (also in this commit)
+`armorLooted: boolean` added to the `Chest` interface. Once armor is picked up, `armorLooted = true` permanently — reopening the same chest shows an empty interior (light still works, lid still animates). The `'open'` state only sets `armor.visible = !armorLooted` when the opening animation completes.
 
 ---
 

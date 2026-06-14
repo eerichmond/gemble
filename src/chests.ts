@@ -15,8 +15,9 @@ interface Chest {
   armor: THREE.Group;
   interiorLight: THREE.PointLight;
   state: ChestState;
-  animTimer: number;   // opening: 0→ANIM_DUR; closing: ANIM_DUR→0
-  armorSpinT: number;  // cumulative time while in 'open' state
+  animTimer: number;    // opening: 0→ANIM_DUR; closing: ANIM_DUR→0
+  armorSpinT: number;   // cumulative time while in 'open' state
+  armorLooted: boolean; // true once armor has been picked up — never re-appears
   x: number;
   z: number;
 }
@@ -162,7 +163,7 @@ function buildChest(
   armor.visible = false;
   group.add(armor);
 
-  return { lidGroup, armor, interiorLight, state: 'closed', animTimer: 0, armorSpinT: 0, x, z };
+  return { lidGroup, armor, interiorLight, state: 'closed', animTimer: 0, armorSpinT: 0, armorLooted: false, x, z };
 }
 
 export function createChests(
@@ -229,8 +230,11 @@ export function createChests(
             nearest.state = 'opening';
             nearest.animTimer = 0;
           } else if (nearest.state === 'open') {
-            // Pick up armor — it disappears, light dims to indicate empty chest
-            nearest.armor.visible = false;
+            if (!nearest.armorLooted) {
+              // First-ever pickup: mark permanently looted, remove armor
+              nearest.armor.visible = false;
+              nearest.armorLooted = true;
+            }
             nearest.interiorLight.intensity = 1;
             nearest.state = 'looted';
           } else if (nearest.state === 'looted') {
@@ -251,7 +255,8 @@ export function createChests(
             chest.interiorLight.intensity = t * 4;
             if (chest.animTimer >= ANIM_DUR) {
               chest.state = 'open';
-              chest.armor.visible = true;
+              // Only show armor if it hasn't been picked up in a previous visit
+              chest.armor.visible = !chest.armorLooted;
               chest.armorSpinT = 0;
             }
             break;

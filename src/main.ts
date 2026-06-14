@@ -14,6 +14,7 @@ import { initAudio } from './audio';
 import { createFlyingEye } from './monsters';
 import { createChests } from './chests';
 import { createBirds } from './birds';
+import { createCapybaras } from './capybaras';
 // FUTURE Phase 2: import { applyDuskAtmosphere } from './atmosphere';
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -29,7 +30,7 @@ const roadObstacles = getRoadObstacles();
 const excludeZones = [...mountainObstacles, ...roadObstacles];
 const { treePositions } = createTrees(scene, getHeightAt, excludeZones);
 createProps(scene, getHeightAt, excludeZones);
-createRoad(scene, getHeightAt);
+const { crystalObstacles } = createRoad(scene, getHeightAt);
 
 // Phase 4: city sits directly on the extended terrain mesh
 const { collisionBoxes, update: updateCity } = createCity(scene, getHeightAt);
@@ -43,10 +44,11 @@ const { update: updatePlayer } = createPlayer(
   camera,
   getHeightAt,
   treePositions,
-  [...mountainObstacles, ...gemObstacles, ...chestObstacles],
+  [...mountainObstacles, ...gemObstacles, ...chestObstacles, ...crystalObstacles],
   collisionBoxes,
 );
 const { update: updateBirds } = createBirds(scene, getHeightAt);
+const { update: updateCapybaras } = createCapybaras(scene, getHeightAt, excludeZones);
 
 const compass = createCompass(camera);
 initAudio();
@@ -65,6 +67,7 @@ function loop(): void {
   updateFlyingEye(dt, camera.position.x, camera.position.z);
   updateChests(dt, camera.position.x, camera.position.z);
   updateBirds(dt, camera.position.x, camera.position.z);
+  updateCapybaras(dt);
   compass.update();
 
   renderer.render(scene, camera);

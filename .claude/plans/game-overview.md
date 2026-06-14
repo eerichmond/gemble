@@ -612,7 +612,9 @@ Three.js `CapsuleGeometry` (available since r142, confirmed present in r176) pro
 
 **Alternative considered**: loading GLTF models (e.g. from [Quaternius](https://quaternius.com) — free CC0 rigged character packs). This remains a valid upgrade path if more anatomical accuracy is needed once the game design is further along. `GLTFLoader` is already in Three.js r176 addons.
 
-**Preview file**: `src/temp/monster-preview.html` — standalone HTML (Three.js via CDN, no build step) showing all three monsters side by side on a daylight background. Delete when no longer needed.
+**Preview file**: `src/temp/monster-preview.html` — standalone HTML (Three.js via CDN, no build step) showing all three monsters side by side on a daylight background. **Read this file for the exact per-part world positions and rotations** — all y-coordinates, x-offsets, arm angles, and wing spar positions are already computed and visually validated there. Use it as the reference implementation when writing `src/monsters.ts`.
+
+**CapsuleGeometry API note**: `new THREE.CapsuleGeometry(radius, length, capSubdivisions, radialSegments)` — `length` is the *cylinder section only* (not total height). Total height = `length + 2 * radius`. The preview uses a `cap(totalH, r, …)` helper that computes `len = Math.max(0, totalH - 2*r)` automatically.
 
 ---
 

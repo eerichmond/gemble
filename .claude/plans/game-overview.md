@@ -344,48 +344,10 @@ src/chests.test.ts — isNearChest radius math; opening animation clamp
 
 ## Phase 7 — Monsters
 
-**Goal:** Populate the forest and city with three distinct enemy creatures. Visual-only for now (no AI or combat) — define their look so we can iterate before committing to implementation.
+**Goal:** Populate the forest and city with three distinct enemy creatures. Visual-only (no AI or combat).
 
 **New files:** `src/monsters.ts`  
 **Modified files:** `src/main.ts` (wire monster update)
-
-### Design (from pencil sketches in `docs/`)
-
-All three monsters share a **medium blue indigo palette** — `iBody=0x2050a0`, `iMid=0x2e68cc`, `iDark=0x0c1e44`, `iCloth=0x183870`.
-
-All limbs use `CapsuleGeometry` + `SphereGeometry` for joints — avoids the blocky Minecraft look of `BoxGeometry`. **CapsuleGeometry API note:** `CapsuleGeometry(radius, length, capSubdivisions, radialSegments)` — `length` is the *cylinder section only*, not total height. Total height = `length + 2 * radius`.
-
-**Reference implementation:** `src/temp/monster-preview.html` — standalone HTML showing all three monsters with all y-coordinates, x-offsets, and arm angles visually validated. Read this before writing troll/winged geometry in `src/monsters.ts`.
-
----
-
-### Crystal Troll (`docs/crystal-troll.png`)
-
-Stocky humanoid, ~2.2 units tall. Arms raised with clawed hands.
-
-| Part | Geometry | Notes |
-|---|---|---|
-| Feet | `CapsuleGeometry(0.07, 0.14)`, `rotation.x = π/2` | horizontal, pointing forward |
-| Calves | `CapsuleGeometry(0.09, 0.32)` total h=0.50 | |
-| Knee joints | `SphereGeometry(0.105)` | |
-| Thighs | `CapsuleGeometry(0.12, 0.24)` total h=0.48 | converge toward center |
-| Hips | `SphereGeometry(0.19)` + `CapsuleGeometry(0.18, 0.02)` | `iCloth` pants |
-| Chest | `CapsuleGeometry(0.24, 0.14)` total h=0.62 | stocky, wide |
-| Shoulder joints | `SphereGeometry(0.135)` | |
-| Neck | `CapsuleGeometry(0.10, 0.06)` total h=0.26 | short, thick |
-| Head | `SphereGeometry(0.27)` | slightly oversized for troll |
-| Eyes | `ShapeGeometry` pointed-oval | inner corner DOWN, outer corner UP = angry scowl; left `tiltZ=-0.32`, right `+0.32` |
-| Brow ridge | `BoxGeometry(0.36, 0.07, 0.09)` | `iDark` |
-| Nose | `ConeGeometry(0.065, 0.16, 4)`, `rotation.x = -π/2` | pointy, forward |
-| Ears | `ConeGeometry(0.055, 0.19, 4)`, `rotation.z = ±π/2` | |
-| Crystal spikes ×3 | `ConeGeometry(0.07, 0.37, 5)` steel-blue `iCrystal=0x4a85b5`, emissive `0x1e4d88` | 4-sided pyramid `rotation.y=π/4`; crown of head, varied tilt |
-| Upper arms | `CapsuleGeometry(0.09, 0.26)` total h=0.44 | `rz = atan2(-dx, dy)` from direction vector |
-| Elbow joints | `SphereGeometry(0.095)` | |
-| Forearms | `CapsuleGeometry(0.085, 0.23)` total h=0.40 | |
-| Fists | `SphereGeometry(0.095)` | |
-| Claws ×3/hand | `ConeGeometry(0.06, 0.26, 4)` `iDark` | splayed ±0.24 rad in forearm direction |
-
-**Arm computation:** Arms go OUTWARD from shoulders. Upper arm direction `(side*0.94, 0.34)`; forearm bends up `(side*0.50, 0.87)`. `rz = atan2(-dx, dy)` for capsule rotation from a direction vector. Joint world positions computed analytically from θ and capsule length.
 
 ---
 
@@ -397,40 +359,63 @@ Abstract floating creature at `(0, groundY + 5.0, -310)` — city main intersect
 - Tracks player: iris smoothly slerps toward player via quaternion. The eye's local +Z faces the player — iris always looks at them.
 - Purple PointLight glow
 
-Side cones orient outward via quaternion (hardcoded `rotation.z = ±π/2` produced pointing-up/down artifacts).
+---
+
+### Crystal Troll — placed at `(-20, terrain, 50)` in forest (~85 u south of spawn, behind terrain rise)
+
+Stocky humanoid ~2.2 units tall. **Olive-green skin** (`0x5a7040`), darker detail color `0x3d5030`. **Tan burlap clothes** (BoxGeometry pants at hips, BoxGeometry tunic panel at lower chest) — `0xc8a060`. Steel-blue crystal spikes on crown.
+
+All limbs: `CapsuleGeometry` + `SphereGeometry` joints. `rz = atan2(-dx, dy)` for angled capsule orientation.
+
+| Part | Geometry | Notes |
+|---|---|---|
+| Calves | `CapsuleGeometry(0.09, 0.28)` | |
+| Knees | `SphereGeometry(0.105)` | |
+| Thighs | `CapsuleGeometry(0.12, 0.22)` | converge toward center |
+| Hips | `SphereGeometry(0.19)` | |
+| Pants | `BoxGeometry(0.50, 0.34, 0.26)` tan | covers hips/thigh region |
+| Chest | `CapsuleGeometry(0.24, 0.14)` | stocky, wide |
+| Tunic | `BoxGeometry(0.52, 0.20, 0.28)` tan | lower chest panel |
+| Head | `SphereGeometry(0.27)` | in `headGroup` for animation |
+| Brow | `BoxGeometry(0.36, 0.07, 0.09)` skinDk | above eyes |
+| Nose | `ConeGeometry(0.065, 0.16, 4)`, `rotation.x = -π/2` | pointy, forward |
+| Ears | `ConeGeometry(0.055, 0.19, 4)`, `rotation.z = ±π/2` | |
+| Crystal spikes ×3 | `ConeGeometry(0.07, 0.37, 4)` `0x4a85b5` emissive `0x1e4d88` | `rotation.y=π/4`; crown, varied tilt |
+| Upper arms | `CapsuleGeometry(0.09, 0.26)` | dir `(±0.94, 0.34)`, outward + up |
+| Forearms | `CapsuleGeometry(0.085, 0.23)` | dir `(±0.50, 0.87)`, bend further up |
+| Claws ×3/hand | `ConeGeometry(0.055, 0.22, 4)` skinDk | splayed ±0.26 rad in forearm dir |
+
+**Animation (in `createForestMonsters.update`):**
+- `headGroup.rotation.y = sin(t × 0.55) × 0.30` — slow head turn side-to-side
+- `rootGroup.rotation.z = sin(t × 0.40) × 0.035` — subtle body weight shift
 
 ---
 
-### Winged Monster (`docs/winged-monster.png`)
+### Winged Monster — placed at `(-18, terrain, -365)` in city (west side of city, between houses)
 
-Narrow humanoid, similar height to Crystal Troll but more elegant. Bat wings from upper back. T-pose arms. Spiky hair, no mouth. Narrower proportions throughout (chest `CapsuleGeometry(0.17, …)` vs troll's `0.24`).
+Narrow humanoid, similar height to troll. **Dark charcoal body** (`0x2a2830`). **Dark cloth** (`0x3a3025`) BoxGeometry wrap at waist and chest. T-pose arms. Spiky hair, no nose/mouth. Bat wings from upper back.
 
-**Wings** (per side):
-- Arm spar goes outward to wrist; then 3 finger spars SYMMETRICALLY: F1 (up, +spread), F2 (horizontal, furthest out), F3 (down, −spread) — F1/F3 exact mirrors around wrist height
-- Membrane: `PlaneGeometry`, `DoubleSide`, dark indigo; scallop control points pulled inward for concave bat-wing edge
-- `sparBone(x1,y1, x2,y2)` helper computes capsule midpoint + `rz = atan2(-dx/len, dy/len)`
+**Wings** (per side): arm spar (`CapsuleGeometry(0.04, 0.82)`), wrist ball, 3 finger spars spreading F1 (up-out), F2 (horizontal), F3 (down-out). Dark `PlaneGeometry` membrane (`DoubleSide`, `0x1a0a1a`). Wing groups pivot at back-shoulder level.
 
-**Arms:** horizontal T-pose via `CapsuleGeometry` with `rotation.z = ±π/2`.
+**Animation:**
+- `headGroup.rotation.y = sin(t × 0.45) × 0.25` — slow head sway
+- `leftWing.rotation.z = -sin(t × 0.90) × 0.40` — flap up/down
+- `rightWing.rotation.z = +sin(t × 0.90) × 0.40` — opposite sign = both wings rise/fall together
 
 ---
 
-### `src/monsters.ts` — Flying Eye ✅ DONE
+### `src/monsters.ts` structure
 
-**Remaining for full Phase 7:**
-- Add Crystal Troll at `(35, terrain, 55)` — copy geometry from preview
-- Add Winged Monster at `(−50, terrain, 80)` — copy geometry from preview
-- Export unified `{ update(dt) }` for both
+`createFlyingEye` + `buildCrystalTroll` + `buildWingedMonster` + `createMonsters` (export, wired in `main.ts`). Note: function was renamed from `createForestMonsters` — one monster is in the city now.
 
 ### Phase 7 Visual Checklist
 
 - [x] Flying Eye in city — bobs, drifts, tracks player with iris
-- [ ] Crystal Troll placed in forest
-- [ ] Winged Monster placed in forest
-- [ ] Medium-blue palette consistent across all three
-- [ ] Crystal spikes (steel-blue 4-sided pyramids) on troll and winged monster
-- [ ] Angry squinted eyes (inner down, outer up) on troll and winged monster
-- [ ] Troll arms spread outward with fanned claws
-- [ ] Dragon wings with 3 symmetric ridges on winged monster
+- [ ] Crystal Troll visible in forest (~85 u south of spawn, behind hill)
+- [ ] Winged Monster visible in city (west side, between houses)
+- [ ] Troll head turns slowly side-to-side; body sways subtly
+- [ ] Winged Monster wings flap slowly up and down together
+- [ ] Winged Monster head sways side-to-side
 - [ ] No fps drop with all three active
 
 ---

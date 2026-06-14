@@ -11,7 +11,7 @@ import { createCity } from './city';
 import { createGem } from './gem';
 import { createCompass } from './compass';
 import { initAudio } from './audio';
-import { createFlyingEye } from './monsters';
+import { createFlyingEye, createMonsters } from './monsters';
 import { createChests } from './chests';
 import { createBirds } from './birds';
 import { createCapybaras } from './capybaras';
@@ -51,6 +51,7 @@ const { update: updatePlayer } = createPlayer(
 const { update: updateBirds } = createBirds(scene, getHeightAt);
 const { update: updateCapybaras } = createCapybaras(scene, getHeightAt, excludeZones);
 const { update: updateGhosts } = createGhosts(scene, getHeightAt);
+const { update: updateForestMonsters } = createMonsters(scene, getHeightAt);
 
 const compass = createCompass(camera);
 initAudio();
@@ -71,6 +72,7 @@ function loop(): void {
   updateBirds(dt, camera.position.x, camera.position.z);
   updateCapybaras(dt);
   updateGhosts(dt);
+  updateForestMonsters(dt);
   compass.update();
 
   renderer.render(scene, camera);

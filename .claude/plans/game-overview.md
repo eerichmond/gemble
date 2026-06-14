@@ -219,24 +219,25 @@ No pure functions to test in props or atmosphere. Skip.
 **New files:** `src/road.ts`
 
 **Implementation notes:**
-- Road hidden from spawn — first waypoint at z=−62, player must explore south to discover it
-- 8 waypoints form a gentle S-curve: `[0,−62] → [−14,−95] → [−24,−128] → [−18,−158] → [−5,−188] → [10,−218] → [14,−245] → [4,−262]`
+- Road runs full map length: north end at `[20, 238]` (crystal formation), south end at `[4, −248]` (city entrance)
+- 15 waypoints, gentle S-curve through the forest passing ~18 units east of spawn — visible to the right when facing south
 - Road width: 12 units (two comfortable lanes)
-- `buildRibbon()` walks sampled spine, samples `getHeightAt()` per vertex — road hugs rolling terrain naturally
+- `buildRibbon()` + `buildDashes()` both use `roadSurfaceH()`: samples terrain at left, center, right across full road width and takes the max. Prevents grass poking through even on rolling hills.
 - UV V accumulates arc length so the asphalt texture tiles cleanly along curves without stretching
-- White edge lines: `0.4` units wide, `0xd0d0d0`, positioned at road edges offset `Y_MARK = Y_ROAD + 0.02` above road
-- Yellow dashes: `0.36` wide, 2.5 units on / 4.0 units gap, `0xd4aa00`, built as a single `BufferGeometry`
-- Asphalt canvas texture: `256×256`, dark gray `#242424` base + 5000 aggregate speckles + subtle longitudinal wear streaks
-- Road surface Y offset `0.06` above terrain, markings `0.08` — both prevent Z-fighting cleanly
-- No collision barrier — player walks freely on and off the road
+- White edge lines: `0.4` units wide, `0xd0d0d0`; Yellow dashes: `0.36` wide, 2.5 on / 4.0 gap, `0xd4aa00`
+- All markings use `Y_MARK = Y_ROAD + 0.03` so they always sit above the road surface
+- Asphalt canvas texture: `256×256`, dark gray `#242424` base + 5000 aggregate speckles
+- `getRoadObstacles()` exports CircleObstacle[] (spine sampled every 4 units, radius 10) — called in `main.ts` before trees/props so vegetation is kept clear of the road corridor
+- Crystal formation at north end: 9 dark blue-green `ConeGeometry(r, h, 4)` spikes (heights 38–62 units, ~half mountain height), buried 20% underground, varied tilts, `emissive: 0x040e0a` subtle glow. Blocks the road, signals this direction leads nowhere safe.
+- No collision barrier on road — player walks freely on and off it
 
 ### Phase 3 Visual Checklist
-- [x] Road visible, dark asphalt surface distinct from terrain
-- [x] Yellow centerline dashes visible
-- [x] White edge lines on both sides
-- [x] Road winds naturally through hills, following terrain
-- [x] Road starts hidden — only found by walking south from spawn
-- [x] Road connects forest zone to city entrance area (z=−262)
+- [x] Road visible from spawn to the east (right of player view)
+- [x] Dark asphalt surface, white edge lines, yellow center dashes
+- [x] Road follows terrain — no grass poking through, no dashes dipping below
+- [x] Trees and props cleared from road corridor
+- [x] Road runs full map length (north crystals → south city entrance)
+- [x] Crystal formation at north end — dark jagged spikes block the road
 
 ---
 

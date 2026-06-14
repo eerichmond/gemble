@@ -3,20 +3,24 @@ import type { CircleObstacle } from './terrain';
 
 export interface GemResult {
   update: (dt: number) => void;
-  obstacle: CircleObstacle;
+  obstacles: CircleObstacle[];
 }
 
-export function createGem(
-  scene: THREE.Scene,
-  getHeightAt: (x: number, z: number) => number,
-): GemResult {
-  // Hidden in the forest west of the road — discoverable by exploration
-  const GEM_X = -52;
-  const GEM_Z = 108;
-  const groundY = getHeightAt(GEM_X, GEM_Z);
+const GEM_X = -52;
+const GEM_Z = 108;
+const PYRAMID_H = 12;   // ~deciduous tree height
+const PYRAMID_R = 2.5;  // base radius
+const CRYSTAL_DIST = 12; // one road-width away in each cardinal direction
 
-  const geo = new THREE.OctahedronGeometry(0.5, 0);
-  const mat = new THREE.MeshPhongMaterial({
+const CRYSTAL_OFFSETS: [number, number][] = [
+  [0, CRYSTAL_DIST],   // north
+  [0, -CRYSTAL_DIST],  // south
+  [CRYSTAL_DIST, 0],   // east
+  [-CRYSTAL_DIST, 0],  // west
+];
+
+function crystalMat(): THREE.MeshPhongMaterial {
+  return new THREE.MeshPhongMaterial({
     color: 0x6040ff,
     emissive: 0x300090,
     specular: 0xffffff,
@@ -24,7 +28,28 @@ export function createGem(
     transparent: true,
     opacity: 0.85,
   });
-  const gem = new THREE.Mesh(geo, mat);
+}
+
+export function createGem(
+  scene: THREE.Scene,
+  getHeightAt: (x: number, z: number) => number,
+): GemResult {
+  const groundY = getHeightAt(GEM_X, GEM_Z);
+
+  // Four large pyramid crystals (square-base, ~tree height) around the gem
+  const pyramidGeo = new THREE.ConeGeometry(PYRAMID_R, PYRAMID_H, 4);
+  pyramidGeo.rotateY(Math.PI / 4); // rotate so faces point cardinal directions
+  for (const [ox, oz] of CRYSTAL_OFFSETS) {
+    const cx = GEM_X + ox;
+    const cz = GEM_Z + oz;
+    const cy = getHeightAt(cx, cz);
+    const crystal = new THREE.Mesh(pyramidGeo, crystalMat());
+    crystal.position.set(cx, cy + PYRAMID_H / 2, cz);
+    scene.add(crystal);
+  }
+
+  const geo = new THREE.OctahedronGeometry(0.5, 0);
+  const gem = new THREE.Mesh(geo, crystalMat());
   // Eye-level: 1.5 units above ground (player eye height ~1.7, well below tree canopy)
   gem.position.set(GEM_X, groundY + 1.5, GEM_Z);
   scene.add(gem);
@@ -52,5 +77,10 @@ export function createGem(
   // FUTURE: detect proximity < 2 units → trigger collection
   // FUTURE: play sound + show victory screen on pickup
 
-  return { update, obstacle: { x: GEM_X, z: GEM_Z, radius: 1.5 } };
+  const obstacles: CircleObstacle[] = [
+    { x: GEM_X, z: GEM_Z, radius: 1.5 },
+    ...CRYSTAL_OFFSETS.map(([ox, oz]) => ({ x: GEM_X + ox, z: GEM_Z + oz, radius: 3.0 })),
+  ];
+
+  return { update, obstacles };
 }

@@ -74,9 +74,9 @@ export function createPlayer(
   buildingBoxes: BuildingBox[] = [],
 ): PlayerResult {
   let yaw = 0;
-  // Temporary city-debug spawn — original: posX=0, posZ=0
-  let posX = 0;
-  let posZ = -268;
+  // Spawn north of crystal formation so player faces south into the crystals
+  let posX = -52;
+  let posZ = 130;
 
   // Place camera at spawn height immediately
   camera.position.set(posX, getHeightAt(posX, posZ) + PLAYER_HEIGHT, posZ);
@@ -86,10 +86,11 @@ export function createPlayer(
     if (isKeyDown('ArrowLeft')) yaw += TURN_SPEED * dt;
     if (isKeyDown('ArrowRight')) yaw -= TURN_SPEED * dt;
 
-    // Forward / backward movement
+    // Forward / backward movement (hold Shift to sprint at 3× speed)
     if (isKeyDown('ArrowUp') || isKeyDown('ArrowDown')) {
       const dir = isKeyDown('ArrowUp') ? 1 : -1;
-      const { dx, dz } = computeMovementDelta(yaw, MOVE_SPEED * dir, dt);
+      const sprint = isKeyDown('ShiftLeft') || isKeyDown('ShiftRight') ? 3 : 1;
+      const { dx, dz } = computeMovementDelta(yaw, MOVE_SPEED * dir * sprint, dt);
 
       let newX = posX + dx;
       let newZ = posZ + dz;

@@ -70,8 +70,8 @@ export function createFlyingEye(
       time += dt;
 
       // Bob up/down (doubled amplitude) and gentle side-drift
-      group.position.y = EYE_BASE_Y + Math.sin(time * 1.3) * 0.30;
-      group.position.x = EYE_X      + Math.sin(time * 0.35) * 0.80;
+      group.position.y = EYE_BASE_Y + Math.sin(time * 1.3) * 0.60;
+      group.position.x = EYE_X      + Math.sin(time * 0.35) * 1.60;
 
       // Iris scanning animation
       iris.rotation.x  = Math.sin(time * 0.7)  * 0.15;

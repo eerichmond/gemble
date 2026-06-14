@@ -43,7 +43,7 @@ Add `stats.js` in Phase 0 and leave it in permanently during development. Remove
          S
 ```
 
-Main terrain: 500×700 unit mesh (translated south via `geometry.translate(0,100,0)` before rotateX). Terrain amplitude flattens gradually south of z=-180 using `flattenT = min(1, (-z-180)/80)` — full hills at z=-180, ~8% amplitude at z=-260 and beyond. No separate city ground plane. Road: gravel from north to z=-248, then wider black asphalt through city to z=-440. Gem is at the apartment building north face (~z=-321).
+Main terrain: 500×700 unit mesh (translated south via `geometry.translate(0,100,0)` before rotateX). Terrain amplitude flattens gradually south of z=-180 using `flattenT = min(1, (-z-180)/80)` — full hills at z=-180, ~8% amplitude at z=-260 and beyond. No separate city ground plane. Road: gravel from north to z=-248, then wider black asphalt through city to z=-440. Gem is in the forest at `(-52, y, 108)`, surrounded by 4 large purple pyramid crystals 12 units out in each cardinal direction. Player spawns at `(-52, y, 130)` facing south into the crystal formation.
 
 ---
 
@@ -66,10 +66,13 @@ gemble/
     ├── player.test.ts       # unit tests — movement, collision, clamp  [Phase 1]
     ├── input.ts             # keyboard state  [Phase 0]
     ├── road.ts              # gravel road + crystals  [Phase 3 ✅]
-    ├── city.ts              # buildings, parking, props  [Phase 4 — not yet built]
-    ├── gem.ts               # gem geometry + animation  [Phase 4 — not yet built]
-    ├── birds.ts             # crows that startle on approach  [Phase 5 — not yet built]
-    └── chests.ts            # treasure chests, Space to open  [Phase 6 — not yet built]
+    ├── city.ts              # buildings, parking, props  [Phase 4 ✅]
+    ├── gem.ts               # gem + 4 pyramid crystals, forest  [Phase 4 ✅]
+    ├── audio.ts             # forest ambient + caw sound  [Phase 4/5 ✅]
+    ├── monsters.ts          # flying eye  [Phase 7 partial ✅]
+    ├── compass.ts           # HUD compass  [Phase 4 ✅]
+    ├── birds.ts             # crow groups that startle on approach  [Phase 5 ✅]
+    └── chests.ts            # treasure chests, Space to open  [Phase 6 ✅]
 ```
 
 ---
@@ -284,18 +287,21 @@ City center around `(4, terrain, -330)`. Road center is `x=4`, road spans `x:[-5
 - Streetlights: 8 poles at x=±11/−8, z=-282/−310/−380/−420; `PointLight(0xffe080, 3.0, 25)` warm yellow glow
 
 ### `src/gem.ts`
-- `OctahedronGeometry(0.5, 0)`, `MeshPhongMaterial({ color: 0x6040ff, emissive: 0x300090, ... })`
-- Position: `(25, y, -321)` — just north of apartment's north face
-- `PointLight(0x8060ff, 3, 10)` purple glow
-- `CircleObstacle { x: 25, z: -321, radius: 1.5 }` — player can't walk through
+- Floating diamond gem: `OctahedronGeometry(0.5, 0)`, `MeshPhongMaterial({ color: 0x6040ff, emissive: 0x300090, specular: 0xffffff, shininess: 150, transparent, opacity: 0.85 })`
+- Position: `(-52, y, 108)` — hidden in the forest west of the road
+- `PointLight(0x8060ff, 8, 22)` area glow + `PointLight(0x6030cc, 4, 12)` ground pool
 - `update(dt)`: spin Y + bob vertically
+- **4 surrounding pyramid crystals**: `ConeGeometry(2.5, 12, 4)` (height ~12 = deciduous tree height), same purple material, placed 12 units N/S/E/W of gem center at `(-52, y, 120)`, `(-52, y, 96)`, `(-40, y, 108)`, `(-64, y, 108)`. Rotated `PI/4` so faces point cardinal directions.
+- `obstacles: CircleObstacle[]` — gem radius 1.5, each pyramid radius 3.0 (5 total — player can walk between crystals but not through them)
+- Player spawns at `(-52, y, 130)` facing south into the formation
 
 ### `src/audio.ts` (new)
 Forest ambient CC0 sound (`/assets/forest-ambient.mp3`). Autoplay on first keydown/click. Volume 0.9.
 
 ### `src/player.ts` additions
 - Building collision: `isBlockedByBuilding(x, z, boxes, radius)` — AABB check
-- Player spawn at `posZ = -268` for city debugging (was z=0; restore when done)
+- Sprint: hold `ShiftLeft`/`ShiftRight` + `↑`/`↓` for 3× speed (24 u/s vs normal 8)
+- Player spawns at `(-52, y, 130)` — north of crystal formation, facing south
 
 ### Phase 4 Visual Checklist
 - [x] Road leads into city (no gap — gravel ends, asphalt begins at same point)
@@ -308,10 +314,10 @@ Forest ambient CC0 sound (`/assets/forest-ambient.mp3`). Autoplay on first keydo
 - [x] Tumbleweed slowly spinning
 - [x] Streetlight warm yellow glow (8 posts)
 - [x] Player cannot walk through buildings
-- [x] Gem visible as purple glow from down the street
-- [x] Gem spins and bobs at apartment north face
+- [x] Gem in forest at (-52, y, 108) — purple glow, spins and bobs
+- [x] 4 pyramid crystals surround gem (height ~12, same purple material, 12 units out each direction)
+- [x] Player spawns facing crystal formation
 - [x] 11 buildings total extending city south to z=-430
-- [ ] Gem NOT visible from forest spawn (not yet verified)
 
 ### Phase 4 Tests
 ```
@@ -322,90 +328,58 @@ src/player.test.ts  — add isBlockedByBuilding tests
 
 ---
 
-## Phase 5 — Birds
+## Phase 5 — Birds ✅ COMPLETE
 
-**Goal:** A handful of black crows rest on the ground throughout the forest. Walk within ~15 units of one and it startles — wings flap, it lifts off, and flies away. Adds life and atmosphere without requiring detailed art.
+**Goal:** Crows rest in groups of 3–4 throughout the forest. Walk within 5 units of any bird and the whole group startles together — caw sound plays, all birds panic-flap, lift off, and scatter in different directions. Adds life and atmosphere without detailed art.
 
 **New files:** `src/birds.ts`  
 **Modified files:** `src/main.ts` (wire birds update)
 
 ### `src/birds.ts`
 
-**Geometry (per bird — 5 mesh parts, grouped under a `THREE.Group`):**
+**Geometry (per bird — 5 mesh parts under a `THREE.Group`, shared geometries/materials across all 15):**
 
 | Part | Geometry | Material | Notes |
 |---|---|---|---|
-| Body | `SphereGeometry(0.25, 6, 4)` scaled `(1, 0.6, 1.5)` | black | elongated ellipsoid |
-| Head | `SphereGeometry(0.12, 6, 4)` | black | positioned at front-top of body |
-| Beak | `ConeGeometry(0.04, 0.12, 4)` | `0xf0c020` yellow | rotated to point forward from head |
-| Wing L | `BoxGeometry(0.4, 0.04, 0.18)` | black | pivots at body left side |
-| Wing R | `BoxGeometry(0.4, 0.04, 0.18)` | black | pivots at body right side |
+| Body | `SphereGeometry(0.25, 6, 4)` scaled `(1, 0.6, 1.5)` | `0x111111` black | elongated ellipsoid, Z = front-back axis |
+| Head | `SphereGeometry(0.12, 6, 4)` | black | at `(0, 0.14, 0.28)` above and forward of body |
+| Beak | `ConeGeometry(0.04, 0.12, 4)` | `0xf0c020` yellow | child of head; `rotation.x = -PI/2` points it forward (+Z) |
+| Wing L | `BoxGeometry(0.4, 0.04, 0.18)` in a child Group | black | Group at shoulder `(-0.25, 0, 0)`; mesh offset `-0.2` so inner edge is pivot |
+| Wing R | same in mirrored Group | black | Group at `(0.25, 0, 0)`; mesh offset `+0.2` |
 
-Wings are child `Group` nodes so rotation around their root (attachment point) folds/flaps correctly.
+**Placement — grouped:**
+- 4 groups (sizes 4, 4, 3, 4 = 15 birds), seeded RNG (seed 55)
+- Each group has a random center in `[-170, 170]` XZ; birds scattered within 5 units of center
+- 25-unit clearance around player spawn `(-52, 130)`
 
-**Placement:**
-- 15 birds placed randomly in the forest zone (`[-200, 200]` XZ), same clearance rules as trees
-- Exclude city zone `[-60, 60] × [-260, -380]`
-- Each placed at `getHeightAt(x, z)` — sitting on terrain surface
-
-**Per-bird state machine:**
-
-```ts
-type BirdState = 'resting' | 'startled' | 'flying';
-```
+**State machine:**
 
 | State | Trigger | Behavior |
 |---|---|---|
-| `resting` | — | wings folded (rotation ≈ 0); optional slow head-bob |
-| `startled` | player within 15 units | rapid wing flap begins; bird lifts vertically ~3 units over 0.5 s |
-| `flying` | after 0.5 s startled | moves in random horizontal direction at 10 units/s; climbs 5 units/s for 2 s then levels off; wing flap continues |
+| `resting` | — | wings folded `±0.15`; checks `shouldStartle` each frame |
+| `startled` | player within **5 units** of any bird in group | **entire group startles at once**; plays `crow-caw.wav`; birds scatter in evenly-spread directions; 6 Hz panic flap; lifts 3 units over 0.5 s |
+| `flying` | after 0.5 s | 4 Hz rhythmic flap; 10 u/s horizontal; climbs 5 u/s for 2 s then levels; faces `flightDir` via `atan2`; disposed when 150 units from spawn |
 
-Birds do not return or land — once airborne they fly until ~150 units from spawn, then dispose themselves from the scene.
-
-**Wing flap animation:**
-- Resting: left wing `rotation.z = +0.15`, right `rotation.z = -0.15` (folded in)
-- Flying: sine-wave flap at 4 Hz → `rotation.z = ±(0.6 * sin(time * 4 * 2π))`
-- Startled: same as flying but 6 Hz for the first 0.5 s (panic flap)
+**Audio:** `public/assets/crow-caw.wav` (CC0, OpenGameArt). One caw plays per group startle via `new Audio('/assets/crow-caw.wav').play()`.
 
 **Exports:**
-
-```ts
-export interface Bird {
-  group: THREE.Group;
-  state: BirdState;
-  flightDir: { x: number; z: number };  // normalized, set on startle
-  flightTimer: number;
-  distanceFromSpawn: number;
-}
-
-export function createBirds(
-  scene: THREE.Scene,
-  getHeightAt: (x: number, z: number) => number,
-): { update: (dt: number, playerX: number, playerZ: number) => void }
-```
-
-**Pure helper (testable):**
-
-```ts
-export function shouldStartle(
-  birdX: number, birdZ: number,
-  playerX: number, playerZ: number,
-  radius: number,
-): boolean
-```
+- `shouldStartle(birdX, birdZ, playerX, playerZ, radius): boolean` — pure helper, testable
+- `createBirds(scene, getHeightAt): { update(dt, playerX, playerZ) }`
 
 ### Phase 5 Visual Checklist
 
-- [ ] ~15 black birds visible resting on terrain throughout the forest
-- [ ] Birds have visible yellow beak
-- [ ] Wings visibly folded when resting
-- [ ] Walking within ~15 units triggers flight
-- [ ] Bird lifts off with rapid wing flap (panic flutter)
-- [ ] Bird flies away in a consistent direction, gaining altitude then leveling
-- [ ] Wing flap continues during flight (slower, rhythmic)
-- [ ] Birds dispose cleanly — no ghost meshes after flying away
-- [ ] No fps drop with 15 birds active (well under draw call budget)
-- [ ] Birds do not spawn inside trees or city zone
+- [x] ~15 black birds in 4 groups, resting on terrain throughout the forest
+- [x] Birds have visible yellow beak
+- [x] Wings visibly folded when resting
+- [x] Walking within 5 units triggers group flight — all birds in group scatter at once
+- [x] Crow caw plays on group startle
+- [x] Birds spread in different directions when scattering (not all same angle)
+- [x] Bird lifts off with rapid wing flap (panic flutter)
+- [x] Bird flies away gaining altitude then leveling
+- [x] Wing flap continues during flight (slower, rhythmic)
+- [x] Birds dispose cleanly — no ghost meshes after flying away
+- [x] No fps drop with 15 birds active
+- [x] Birds do not spawn near player start position
 
 ### Phase 5 Tests (add after visual validation)
 
@@ -416,78 +390,52 @@ src/birds.test.ts — shouldStartle radius math; state transitions
 
 ---
 
-## Phase 6 — Treasure Chests
+## Phase 6 — Treasure Chests ✅ DONE
 
-**Goal:** Scatter a handful of battered pirate-style treasure chests throughout the forest and city. Walk close to one, press Space, and the lid swings open so the player can peer inside. Chests are currently empty — a hook for future loot.
+**Goal:** Scatter 8 battered pirate-style treasure chests throughout the forest. Walk close, press Space, and the lid swings open so the player can peer inside.
 
 **New files:** `src/chests.ts`  
-**Modified files:** `src/main.ts` (wire chests update + pass player position), `src/input.ts` (add Space key to `initInput` listener, already stubbed as `// FUTURE: add 'Space' for interact`)
+**Modified files:** `src/main.ts` (import + wire `updateChests`, move before `createPlayer`)  
+**`src/input.ts` not touched** — `isKeyDown('Space')` already works since `keys.add(e.code)` captures all keys.
 
-### `src/chests.ts`
+### `src/chests.ts` — actual implementation
 
-**Geometry (per chest — assembled under a `THREE.Group`):**
+**Geometry (2× scale, H=1.60 for deep interior — player eye=1.70, chest top=1.60):**
 
 | Part | Geometry | Material | Notes |
 |---|---|---|---|
-| Body | `BoxGeometry(0.8, 0.5, 0.5)` | dark wood `0x3d1f08` | main lower box |
-| Lid | `BoxGeometry(0.8, 0.3, 0.5)` | dark wood `0x3d1f08` | pivots open from back edge |
-| Interior floor | `BoxGeometry(0.72, 0.01, 0.44)` | dark velvet `0x1a0a0a` | visible when lid open |
-| Metal bands (×2) | `BoxGeometry(0.82, 0.08, 0.08)` | aged iron `0x3a3a3a` | horizontal strips on body front and back |
-| Lock hasp | `BoxGeometry(0.1, 0.12, 0.06)` | `0x5a5a5a` | centred on body front face |
+| Body | `BoxGeometry(1.60, 1.60, 1.00)` | wood `0x3d1f08` DoubleSide + transparent top face | open top lets player see inside |
+| Lid | `BoxGeometry(1.60, 0.60, 1.00)` | wood DoubleSide | pivots from back-top hinge |
+| Interior floor | `BoxGeometry(1.44, 0.02, 0.84)` | velvet `0x2a0808` | visible through open top |
+| Metal bands (×2) | `BoxGeometry(1.68, 0.12, 1.08)` | iron `0x3a3a3a` | at y=0.28 and y=1.22 |
+| Lock hasp | `BoxGeometry(0.20, 0.24, 0.12)` | `0x5a5a5a` | front face (-Z), z=-(0.5+0.08) |
+| Interior light | `PointLight(0xffa040, 0→4, 6)` | — | amber glow; dims to 1 after loot; fades to 0 on close |
+| **Armor** | gold chest plate — see below | gold | `visible=false` until `'open'` state; floats above chest |
 
-Lid's pivot is at the **back top edge** of the body. Achieve this by placing the lid's local origin at its bottom-back edge: shift geometry by `(0, 0.15, 0.25)` so the back-bottom edge is at local `(0,0,0)`, then rotate on the parent `Group`.
+**Armor geometry (gold chest plate, hovers at H+0.45=2.05 u above terrain when open):**
 
-**Placement:**
-- 8 chests placed randomly in the world (use same seeded RNG approach as `trees.ts`, seed 77)
-- Same clearance rules as trees: `SPAWN_CLEAR = 8` units from origin, exclude mountain zones
-- Each placed at `getHeightAt(x, z)`, rotated randomly on Y so they face varied directions
-- Exports `ChestPosition[]` for potential future collision or minimap use
+| Part | Geometry | Material | Position (armor-local) |
+|---|---|---|---|
+| Main plate | `BoxGeometry(0.68, 0.78, 0.10)` | `0xd4a020` gold, emissive `0x3a2800` | origin |
+| Shoulder guards ×2 | `BoxGeometry(0.26, 0.24, 0.12)` | `0xa07810` dark gold | `(±0.47, 0.33, 0)` |
+| Neck guard | `BoxGeometry(0.28, 0.14, 0.10)` | dark gold | `(0, 0.46, 0)` |
+| Waist band | `BoxGeometry(0.62, 0.12, 0.10)` | gold | `(0, -0.45, 0)` |
+| Mid-chest rib | `BoxGeometry(0.58, 0.06, 0.11)` | dark gold | `(0, 0.05, 0.01)` |
 
-**State machine (per chest):**
+The armor group is a child of each chest group. While `'open'`, it spins (Y-axis, 1.5 rad/s) and bobs (`±0.08 u` at 2 Hz). At 2.05 u above terrain vs player eye at 1.70 u — armor hovers ~0.35 u above eye level, visible without camera pitch.
 
-```ts
-type ChestState = 'closed' | 'opening' | 'open';
-```
+**Open-top technique:** `BoxGeometry` material index 2 = +Y face. Pass `[_wood, _wood, _open, _wood, _wood, _wood]` to body Mesh; `_open` is `transparent:true, opacity:0, depthWrite:false`. `_wood` uses `side: THREE.DoubleSide` so inner walls render when looking through the opening.
 
-| State | Trigger | Behavior |
-|---|---|---|
-| `closed` | — | lid rotation.x = 0 (flat) |
-| `opening` | player ≤ 3 units + Space pressed | lid animates from 0 → −2.1 rad (~120°) over 0.6 s |
-| `open` | animation complete | lid stays at −2.1 rad; can see inside |
+**Lid hinge:** `lidGroup.position = (0, 1.60, 0.50)` — back-top edge of body. `lidMesh.position = (0, 0.30, -0.50)` inside lidGroup so its back-bottom edge sits at the hinge origin. Rotation `+2.1 rad` swings lid UP and backward (away from player).
 
-Once open, a chest stays open (no close mechanic needed yet).
+**Hitbox:** `createChests` returns `obstacles: CircleObstacle[]` (radius 0.95 per chest). Called in `main.ts` BEFORE `createPlayer` so chest obstacles are passed to player collision: `[...mountainObstacles, ...gemObstacles, ...chestObstacles]`. Player stops at 1.45 u from chest center — at the surface, still within 3-unit interaction range.
 
-**Interaction:**
-- Each frame in `update(dt, playerX, playerZ)`: for each `closed` chest, check `isNearChest` — if true, show a small text prompt (optional, skip if complex)
-- On Space key down (`isKeyDown('Space')`): if player is within 3 units of any closed chest → transition to `opening`
-- Only one chest can start opening per keypress (the nearest one)
+**Placement (seeded LCG seed 77, 8 chests):** exclude spawn (<8 u), city zone, road corridor, mountain bases (+4 buffer). Each chest placed at `getHeightAt(x,z)`, random Y rotation.
 
-**Opening animation:**
-- Track `openTimer` per chest (0 → 0.6)
-- `lidGroup.rotation.x = lerp(0, -2.1, openTimer / 0.6)` — ease-in-out naturally from linear lerp
-- When `openTimer >= 0.6`, clamp to `−2.1` and set state to `open`
-
-**Pure helper (testable):**
-
-```ts
-export function isNearChest(
-  playerX: number, playerZ: number,
-  chestX: number, chestZ: number,
-  radius: number,
-): boolean
-```
-
-**Exports:**
-
-```ts
-export interface ChestPosition { x: number; z: number }
-
-export function createChests(
-  scene: THREE.Scene,
-  getHeightAt: (x: number, z: number) => number,
-  mountainObstacles?: CircleObstacle[],
-): { update: (dt: number, playerX: number, playerZ: number) => void }
-```
+**State machine:** `'closed' → 'opening' → 'open' → 'looted' → 'closing' → 'closed'`. Space bar edge-triggered (`spaceJustPressed = spaceDown && !spaceWasDown`). Nearest interactable chest within 3 u is targeted.
+- Space (closed) → `'opening'`: lid 0→+2.1 rad, light 0→4, duration 0.6 s. On complete → `'open'`, `armor.visible = true`.
+- Space (open) → `'looted'`: `armor.visible = false`, light snaps to 1 (empty chest dim glow).
+- Space (looted) → `'closing'`: `animTimer` starts at 0.6 and counts down. Lid +2.1→0, light 1→0. On complete → `'closed'`.
 
 ### Phase 6 Visual Checklist
 
@@ -496,9 +444,10 @@ export function createChests(
 - [ ] Lid is flat closed when resting
 - [ ] Walking within 3 units + pressing Space swings the lid open
 - [ ] Lid animates smoothly (~0.6 s) — not an instant snap
-- [ ] Lid opens backward (away from player), revealing the interior
-- [ ] Interior is visible at an angle through the open lid — dark and empty
-- [ ] Chest stays open once triggered
+- [ ] Lid swings UP and backward (away from player, +X rotation)
+- [ ] Gold chest plate appears floating/spinning above the open chest
+- [ ] Second Space press picks up the armor (plate disappears, light dims)
+- [ ] Third Space press closes the chest (lid swings back, light fades)
 - [ ] No fps drop with 8 chests in the scene
 - [ ] Chests do not spawn inside trees or mountain bases
 
@@ -665,6 +614,79 @@ Crystal Troll and Winged Monster: geometry defined in `src/temp/monster-preview.
 - [ ] Troll arms spread outward with fanned claws
 - [ ] Dragon wings with 3 symmetric ridges on winged monster
 - [ ] No fps drop with all three active
+
+---
+
+---
+
+## Phase 8 — Capybaras
+
+**Goal:** Add ~10 capybaras grazing in the forest, grouped in clusters of 3–4. They are visual-only (no AI). Each slowly bobs its head as if eating from the ground, adding life and charm to the world.
+
+**New files:** `src/capybaras.ts`  
+**Modified files:** `src/main.ts` (import + wire `updateCapybaras`)
+
+### Design
+
+**Groups:** 3 groups — two groups of 3 (1 large + 2 small each), one group of 4 (2 large + 2 small). Placed using seeded LCG (seed 88) in the forest zone, 25+ units from each other, away from mountains and road.
+
+**Per-capybara geometry — all `BoxGeometry`, fully blocky:**
+
+| Part | Geometry | Material | Position (local) | Notes |
+|---|---|---|---|---|
+| Body | `BoxGeometry(W, H, L)` large: `(1.0, 0.55, 1.8)`; small: `(0.65, 0.38, 1.2)` | brown `0x7a4a1e` | `(0, legH + H/2, 0)` | main torso |
+| Head group | pivot at front-top of body | — | `(0, legH + H, L/2)` | bobs on this group |
+| Head | `BoxGeometry(Hw, Hh, Hl)` large: `(0.70, 0.55, 0.75)`; small: `(0.45, 0.38, 0.50)` | brown | `(0, -Hh/2, Hl/2)` inside group | so pivot is at head base |
+| Ears (×2) | `BoxGeometry(0.12, 0.14, 0.08)` | brown | `(±0.24, +0.28, 0.0)` | small squares on head top |
+| Eyes (×2) | `BoxGeometry(0.08, 0.08, 0.02)` | black `0x111111` | `(±0.18, 0.04, Hl/2 + 0.01)` | flush with head front face |
+| Nose | `BoxGeometry(0.16, 0.10, 0.04)` | brown `0x5a3010` | `(0, -0.14, Hl/2 + 0.01)` | slightly darker square, front face |
+| Legs (×4) | `BoxGeometry(0.12, legH, 0.12)` large: legH=0.40; small: 0.28 | brown `0x5a3010` | corners of body bottom | short stubby stick legs |
+
+**Sizes:**
+- Large: body `(1.0, 0.55, 1.8)`, head `(0.70, 0.55, 0.75)`, legH=0.40
+- Small: body `(0.65, 0.38, 1.2)`, head `(0.45, 0.38, 0.50)`, legH=0.28
+
+**Eating animation:** Each capybara has a `headGroup` that pivots at the front-top edge of the body. `headGroup.rotation.x` oscillates between `0` (head level) and `+0.35 rad` (head dipped, grazing), driven by `Math.sin(time * speed + phase)` — speed 0.8–1.2 Hz, phase randomized per capybara. Only the head group animates; body stays still.
+
+**Leg positions (local to body group):**
+- Front-left: `(-W/2 + 0.12, 0, L/2 - 0.16)` — bottom of body
+- Front-right: `(+W/2 - 0.12, 0, L/2 - 0.16)`
+- Rear-left: `(-W/2 + 0.12, 0, -L/2 + 0.16)`
+- Rear-right: `(+W/2 - 0.12, 0, -L/2 + 0.16)`
+
+Each leg `BoxGeometry` centered at `(legX, legH/2, legZ)` above the body group origin.
+
+### `src/capybaras.ts` sketch
+
+```ts
+export function createCapybaras(
+  scene: THREE.Scene,
+  getHeightAt: (x: number, z: number) => number,
+  excludeZones: CircleObstacle[] = [],
+): { update: (dt: number) => void }
+```
+
+- Seeded LCG seed 88
+- Three groups: sizes [3, 3, 4] — large slots [0] and [1] per group, rest small
+- Group centers spread throughout forest (`z: [-80..+80]`, `x: [-120..+120]`)
+- Individual capybaras offset ±3–6 units from group center
+- Each capybara: random facing (`rotation.y`), random phase for head bob
+
+### Phase 8 Visual Checklist
+
+- [ ] ~10 capybaras visible in the forest in clusters of 3–4
+- [ ] Large and small sizes clearly distinct
+- [ ] Head bobs smoothly (grazing motion) — not snappy
+- [ ] Brown boxy body, dark stick legs, small square ears
+- [ ] Tiny black square eyes on head front face
+- [ ] Brown square nose (slightly darker than body)
+- [ ] No fps drop with 10 capybaras active
+
+### Phase 8 Tests (add after visual validation)
+
+```
+src/capybaras.test.ts — group placement clearance; head bob clamp
+```
 
 ---
 

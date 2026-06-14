@@ -3,13 +3,14 @@ import type { CircleObstacle } from './terrain';
 
 // ── Capybaras ─────────────────────────────────────────────────────────────────
 // 10 capybaras in 3 groups (3, 3, 4). Per group: 2 large + rest small.
-// All geometry is pure BoxGeometry (cubed/rectangular bodies, black stick legs).
-// Each capybara's head group pivots at the neck joint and bobs as it grazes.
+// Body/legs: BoxGeometry. Head: oval SphereGeometry scaled to an ellipsoid.
+// Eyes sit on top of the head, forward of center. Black square nose at snout tip.
+// Head group pivots at the neck joint and bobs as it grazes.
 
 interface CapybaraEntity {
   headGroup: THREE.Group;
-  bobSpeed: number;  // rad/s — varies per animal for staggered motion
-  bobPhase: number;  // radians — random offset so they don't nod in sync
+  bobSpeed: number;
+  bobPhase: number;
 }
 
 function lcg(seed: number) {
@@ -20,61 +21,56 @@ function lcg(seed: number) {
   };
 }
 
-// ── Materials (shared across all instances) ───────────────────────────────────
-const _brown     = new THREE.MeshLambertMaterial({ color: 0x7a4a1e });
-const _darkBrown = new THREE.MeshLambertMaterial({ color: 0x4a2a08 });
-const _black     = new THREE.MeshLambertMaterial({ color: 0x111111 });
+// ── Shared materials ──────────────────────────────────────────────────────────
+const _brown = new THREE.MeshLambertMaterial({ color: 0x7a4a1e });
+const _black = new THREE.MeshLambertMaterial({ color: 0x111111 });
 
-// ── Size definition ───────────────────────────────────────────────────────────
-// All geometries are pre-built once per size and shared.
+// Unit sphere shared across all head instances; scaled per-individual
+const _headGeo = new THREE.SphereGeometry(1, 8, 6);
+
+// ── Size definitions ──────────────────────────────────────────────────────────
+// hrX/hrY/hrZ are the ellipsoid semi-axes applied via mesh.scale.
+// Head center is placed at (0, hrY, hrZ) in headGroup so its back sits at pivot.
+// Eyes: on TOP of head (y ≈ 2*hrY), forward half (z ≈ hrZ*1.35) — visible from above.
+// Nose: black square at snout tip (z ≈ 2*hrZ), slightly below center height.
 interface CapDef {
-  bW: number; bH: number; bL: number;   // body
-  hW: number; hH: number; hL: number;   // head
-  lW: number; lH: number;               // leg cross-section width, height
-  eW: number; eH: number; eD: number;   // ear
+  bW: number; bH: number; bL: number;   // body box
+  hrX: number; hrY: number; hrZ: number; // head ellipsoid semi-axes
+  lW: number; lH: number;               // leg cross-section, height
+  eH: number;                           // ear height (used for top-of-head offset)
+  eyeS: number;                         // eye box half-size (used for y offset)
   bodyGeo: THREE.BoxGeometry;
-  headGeo: THREE.BoxGeometry;
   legGeo:  THREE.BoxGeometry;
   earGeo:  THREE.BoxGeometry;
   eyeGeo:  THREE.BoxGeometry;
   noseGeo: THREE.BoxGeometry;
 }
 
-function makeDef(
-  bW: number, bH: number, bL: number,
-  hW: number, hH: number, hL: number,
-  lW: number, lH: number,
-  eW: number, eH: number, eD: number,
-  eyeS: number, nW: number, nH: number,
-): CapDef {
-  return {
-    bW, bH, bL, hW, hH, hL, lW, lH, eW, eH, eD,
-    bodyGeo: new THREE.BoxGeometry(bW, bH, bL),
-    headGeo: new THREE.BoxGeometry(hW, hH, hL),
-    legGeo:  new THREE.BoxGeometry(lW, lH, lW),
-    earGeo:  new THREE.BoxGeometry(eW, eH, eD),
-    eyeGeo:  new THREE.BoxGeometry(eyeS, eyeS, 0.02),
-    noseGeo: new THREE.BoxGeometry(nW, nH, 0.04),
-  };
-}
+// Large: body 1.0×0.55×1.8, head ellipsoid ~0.60×0.50×0.80
+const DEF_L: CapDef = {
+  bW: 1.00, bH: 0.55, bL: 1.80,
+  hrX: 0.30, hrY: 0.25, hrZ: 0.40,
+  lW: 0.10, lH: 0.40,
+  eH: 0.16, eyeS: 0.09,
+  bodyGeo: new THREE.BoxGeometry(1.00, 0.55, 1.80),
+  legGeo:  new THREE.BoxGeometry(0.10, 0.40, 0.10),
+  earGeo:  new THREE.BoxGeometry(0.13, 0.16, 0.08),
+  eyeGeo:  new THREE.BoxGeometry(0.09, 0.09, 0.02),
+  noseGeo: new THREE.BoxGeometry(0.14, 0.09, 0.06),
+};
 
-// Large: body 1.0×0.55×1.8, head 0.70×0.55×0.65
-const DEF_L = makeDef(
-  1.00, 0.55, 1.80,
-  0.70, 0.55, 0.65,
-  0.10, 0.40,
-  0.13, 0.16, 0.08,
-  0.09, 0.18, 0.10,
-);
-
-// Small: body 0.65×0.38×1.2, head 0.48×0.38×0.47
-const DEF_S = makeDef(
-  0.65, 0.38, 1.20,
-  0.48, 0.38, 0.47,
-  0.08, 0.28,
-  0.10, 0.12, 0.06,
-  0.07, 0.14, 0.08,
-);
+// Small: body 0.65×0.38×1.2, head ellipsoid ~0.42×0.36×0.56
+const DEF_S: CapDef = {
+  bW: 0.65, bH: 0.38, bL: 1.20,
+  hrX: 0.21, hrY: 0.18, hrZ: 0.28,
+  lW: 0.08, lH: 0.28,
+  eH: 0.12, eyeS: 0.07,
+  bodyGeo: new THREE.BoxGeometry(0.65, 0.38, 1.20),
+  legGeo:  new THREE.BoxGeometry(0.08, 0.28, 0.08),
+  earGeo:  new THREE.BoxGeometry(0.10, 0.12, 0.06),
+  eyeGeo:  new THREE.BoxGeometry(0.07, 0.07, 0.02),
+  noseGeo: new THREE.BoxGeometry(0.10, 0.07, 0.06),
+};
 
 function buildOne(
   scene: THREE.Scene,
@@ -84,7 +80,7 @@ function buildOne(
   large: boolean,
 ): CapybaraEntity {
   const d = large ? DEF_L : DEF_S;
-  const { bW, bH, bL, hW, hH, hL, lW, lH, eH } = d;
+  const { bW, bH, bL, hrX, hrY, hrZ, lW, lH, eH, eyeS } = d;
 
   const root = new THREE.Group();
   root.position.set(x, getHeightAt(x, z), z);
@@ -110,34 +106,36 @@ function buildOne(
   }
 
   // ── Head group ────────────────────────────────────────────────────────────────
-  // Pivot point: front-top of body (neck joint).
-  // rotation.x > 0 = head nods forward-down into grazing posture.
+  // Pivot at front-top of body (neck joint). rotation.x > 0 = grazing nod.
   const headGroup = new THREE.Group();
   headGroup.position.set(0, lH + bH, bL / 2);
   root.add(headGroup);
 
-  // Head mesh: back-bottom edge sits at pivot origin, extends forward (+Z) and up (+Y)
-  const head = new THREE.Mesh(d.headGeo, _brown);
-  head.position.set(0, hH / 2, hL / 2);
+  // Oval head: unit sphere scaled to an ellipsoid.
+  // Placed so its back-bottom edge is at pivot origin, extends forward+up.
+  const head = new THREE.Mesh(_headGeo, _brown);
+  head.scale.set(hrX, hrY, hrZ);
+  head.position.set(0, hrY, hrZ);   // center = (0, hrY, hrZ) → back at z=0, top at y=2*hrY
   headGroup.add(head);
 
-  // Ears — small square blocks on top of head, near the back
+  // Ears — brown squares on TOP of head, back-center portion
   for (const side of [-1, 1] as const) {
     const ear = new THREE.Mesh(d.earGeo, _brown);
-    ear.position.set(side * hW * 0.44, hH + eH / 2, hL * 0.26);
+    ear.position.set(side * hrX * 0.72, hrY * 2 + eH / 2, hrZ * 0.55);
     headGroup.add(ear);
   }
 
-  // Eyes — black squares flush with front face of head, upper sides
+  // Eyes — black squares on TOP of head, set forward (toward snout)
+  // "set back from the nose, in the front half" — top surface, z ≈ 67% along head
   for (const side of [-1, 1] as const) {
     const eye = new THREE.Mesh(d.eyeGeo, _black);
-    eye.position.set(side * hW * 0.33, hH * 0.62, hL + 0.01);
+    eye.position.set(side * hrX * 0.50, hrY * 2 - eyeS * 0.3, hrZ * 1.35);
     headGroup.add(eye);
   }
 
-  // Nose — darker brown square, front face lower-center
-  const nose = new THREE.Mesh(d.noseGeo, _darkBrown);
-  nose.position.set(0, hH * 0.18, hL + 0.02);
+  // Nose — black square at snout tip, slightly below center height
+  const nose = new THREE.Mesh(d.noseGeo, _black);
+  nose.position.set(0, hrY * 0.55, hrZ * 2);
   headGroup.add(nose);
 
   return { headGroup, bobSpeed: 0, bobPhase: 0 };
@@ -161,21 +159,16 @@ export function createCapybaras(
   const SPAWN_X = -52, SPAWN_Z = 130;
 
   for (const members of groupDefs) {
-    // Find a valid group center in the forest
     let gx = 0, gz = 0;
     for (let a = 0; a < 300; a++) {
       gx = (rng() * 2 - 1) * 150;
       gz = (rng() * 2 - 1) * 130;
 
-      // Not too close to player spawn
       const dsx = gx - SPAWN_X, dsz = gz - SPAWN_Z;
-      if (dsx * dsx + dsz * dsz < 900) continue;  // 30 units from spawn
+      if (dsx * dsx + dsz * dsz < 900) continue;  // 30 u from player spawn
+      if (gx > 5 && gx < 30) continue;             // road corridor
+      if (gz < -258) continue;                      // city zone
 
-      // Avoid road corridor and city zone
-      if (gx > 5 && gx < 30) continue;
-      if (gz < -258) continue;
-
-      // Avoid mountain bases, gem crystals, etc.
       const blocked = excludeZones.some(e => {
         const dx = gx - e.x, dz = gz - e.z;
         return dx * dx + dz * dz < (e.radius + 8) * (e.radius + 8);
@@ -191,8 +184,7 @@ export function createCapybaras(
       const rotY = rng() * Math.PI * 2;
 
       const cap = buildOne(scene, getHeightAt, gx + ox, gz + oz, rotY, large);
-      // 0.8–1.4 rad/s → one graze cycle every 4.5–7.8 seconds
-      cap.bobSpeed = 0.8 + rng() * 0.6;
+      cap.bobSpeed = 0.8 + rng() * 0.6;   // 0.8–1.4 rad/s, one cycle per 4.5–7.8 s
       cap.bobPhase = rng() * Math.PI * 2;
       capybaras.push(cap);
     }
@@ -204,7 +196,7 @@ export function createCapybaras(
     update(dt: number): void {
       globalT += dt;
       for (const cap of capybaras) {
-        // Smooth oscillation: 0 rad (head level) ↔ 0.35 rad (head dipped, grazing)
+        // 0 = head level, 0.35 rad = head dipped grazing
         cap.headGroup.rotation.x =
           (1 - Math.cos(globalT * cap.bobSpeed + cap.bobPhase)) * 0.175;
       }

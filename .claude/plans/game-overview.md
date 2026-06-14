@@ -73,7 +73,8 @@ gemble/
     ├── compass.ts           # HUD compass  [Phase 4 ✅]
     ├── birds.ts             # crow groups that startle on approach  [Phase 5 ✅]
     ├── chests.ts            # treasure chests, armor loot, open/close  [Phase 6 ✅]
-    └── capybaras.ts         # 10 grazing capybaras in 3 groups  [Phase 8 ✅]
+    ├── capybaras.ts         # 10 grazing capybaras in 3 groups  [Phase 8 ✅]
+    └── ghosts.ts            # 3 city ghosts floating between buildings  [Phase 9]
 ```
 
 ---
@@ -632,17 +633,17 @@ Crystal Troll and Winged Monster: geometry defined in `src/temp/monster-preview.
 
 **Groups:** 3 groups — `[true,true,false]`, `[true,true,false]`, `[true,true,false,false]` (true=large, false=small) = 10 total. Seeded LCG seed 88.
 
-**Per-capybara geometry — all `BoxGeometry`, fully blocky:**
+**Per-capybara geometry — body/legs are `BoxGeometry`; head is an oval `SphereGeometry`:**
 
 | Part | Geometry | Material | Position in root/headGroup | Notes |
 |---|---|---|---|---|
 | Body | large: `BoxGeometry(1.00,0.55,1.80)`; small: `(0.65,0.38,1.20)` | brown `0x7a4a1e` | `(0, lH+bH/2, 0)` | |
-| Legs (×4) | large: `BoxGeometry(0.10,0.40,0.10)`; small: `(0.08,0.28,0.08)` | **black** `0x111111` | corners at `(±bW/2+lW/2, lH/2, ±bL/2-lW/2)` | black stick legs |
+| Legs (×4) | large: `BoxGeometry(0.10,0.40,0.10)`; small: `(0.08,0.28,0.08)` | **black** `0x111111` | corners at `(±bW/2-lW/2, lH/2, ±bL/2-lW/2)` | black stick legs |
 | headGroup | pivot | — | `(0, lH+bH, bL/2)` in root | rotation.x bobs 0↔0.35 rad |
-| Head | large: `BoxGeometry(0.70,0.55,0.65)`; small: `(0.48,0.38,0.47)` | brown | `(0, hH/2, hL/2)` in headGroup | extends forward+up from pivot |
-| Ears (×2) | large: `BoxGeometry(0.13,0.16,0.08)`; small: `(0.10,0.12,0.06)` | brown | `(±hW*0.44, hH+eH/2, hL*0.26)` | on top-back of head |
-| Eyes (×2) | large: `0.09` sq; small: `0.07` sq; depth `0.02` | black | `(±hW*0.33, hH*0.62, hL+0.01)` | front face, upper sides |
-| Nose | large: `BoxGeometry(0.18,0.10,0.04)`; small: `(0.14,0.08,0.04)` | dark brown `0x4a2a08` | `(0, hH*0.18, hL+0.02)` | front face, lower-center |
+| Head | shared `SphereGeometry(1,8,6)` scaled per size | brown | center at `(0, hrY, hrZ)` | large: scale `(0.30,0.25,0.40)` → ellipsoid W=0.60, H=0.50, L=0.80; small: `(0.21,0.18,0.28)` |
+| Ears (×2) | large: `BoxGeometry(0.13,0.16,0.08)`; small: `(0.10,0.12,0.06)` | brown | `(±hrX*0.72, 2*hrY+eH/2, hrZ*0.55)` | top of head, back portion |
+| Eyes (×2) | large: `0.09` sq; small: `0.07` sq; depth `0.02` | **black** | `(±hrX*0.50, 2*hrY-eyeS*0.3, hrZ*1.35)` | **on TOP of head**, forward half — visible from above |
+| Nose | large: `BoxGeometry(0.14,0.09,0.06)`; small: `(0.10,0.07,0.06)` | **black** | `(0, hrY*0.55, 2*hrZ)` | **black** square at snout tip |
 
 **Eating animation:** `headGroup.rotation.x = (1 - cos(globalT * bobSpeed + phase)) * 0.175`. Oscillates 0 ↔ 0.35 rad. `bobSpeed` = 0.8–1.4 rad/s (one graze cycle every 4.5–7.8 s). Phase randomized so animals in a group don't nod in sync.
 
@@ -652,11 +653,11 @@ Crystal Troll and Winged Monster: geometry defined in `src/temp/monster-preview.
 
 - [ ] ~10 capybaras visible in the forest in clusters of 3–4
 - [ ] Large and small sizes clearly distinct
-- [ ] Black stick legs, brown rectangular body and head
+- [ ] Black stick legs, brown rectangular body, oval brown head
 - [ ] Head bobs smoothly (grazing motion) — not snappy, staggered between animals
-- [ ] Small square ears on top-back of head
-- [ ] Tiny black square eyes on head front face
-- [ ] Dark brown square nose lower on front face
+- [ ] Small square ears on top-back of oval head
+- [ ] Black square eyes on TOP of head, set back from snout (not on front face)
+- [ ] Black square nose at snout tip
 - [ ] No fps drop with 10 capybaras active
 
 ### Phase 8 Tests (add after visual validation)
@@ -667,6 +668,69 @@ src/capybaras.test.ts — group placement clearance; head bob clamp
 
 ### Phase 6 armor one-time-loot fix (also in this commit)
 `armorLooted: boolean` added to the `Chest` interface. Once armor is picked up, `armorLooted = true` permanently — reopening the same chest shows an empty interior (light still works, lid still animates). The `'open'` state only sets `armor.visible = !armorLooted` when the opening animation completes.
+
+---
+
+## Phase 9 — City Ghosts
+
+**Goal:** 3 white translucent ghosts slowly float between buildings in the city. Each ghost waits inside a building for 12–28 seconds, then emerges and drifts to a neighboring building, triggering a door-close sound on arrival. Doors on buildings are changed from near-black to a visible gray-brown so they read as closed.
+
+**New files:** `src/ghosts.ts`  
+**Modified files:** `src/city.ts` (door colors), `src/main.ts` (wire `updateGhosts`)
+
+### `src/ghosts.ts`
+
+**Geometry (per ghost — shared across all 3, white translucent):**
+
+| Part | Geometry | Material | Position (group-local) | Notes |
+|---|---|---|---|---|
+| Body | `CylinderGeometry(0.8, 1.1, 4.5, 10)` | white, opacity 0.82 | `(0, 2.25, 0)` | slightly wider at base, tapers up |
+| Head | `SphereGeometry(0.9, 10, 8)` | white, opacity 0.82 | `(0, 5.4, 0)` | round top, flush with body |
+| Eyes (×2) | `SphereGeometry(0.18, 6, 5)` | `0x1a1a33` dark | `(±0.3, 5.45, 0.82)` | face forward (+Z) |
+| Shadow | `PlaneGeometry(2.6, 1.2)` | black, opacity ~0.25 | terrain below ghost | separate from group; opacity tied to height |
+
+Total ghost height: ~6.3 units. Float height (group origin above terrain): 1.0 unit → top reaches ~7.3 units (slightly less than a large deciduous tree).
+
+**Building waypoints** (city building centers, hardcoded in ghosts.ts):
+```ts
+const BUILDINGS: [number, number][] = [
+  [-22, -285], [28, -285], [25, -330],  [-18, -335],
+  [-14, -360], [-21, -385], [27, -385], [-22, -410],
+  [29, -410],  [-18, -430], [28, -430],
+];
+```
+
+**State machine per ghost:**
+
+| State | Trigger | Behavior |
+|---|---|---|
+| `'dormant'` | — | hidden; countdown timer 12–28 s |
+| `'floating'` | countdown hits 0 | visible; lerps toward dst at 3.5 u/s; vertical bob ±0.3 u at 1.8 Hz; shadow tracks below |
+| → arrival | remaining dist ≤ move step | hides; picks new route; returns to `'dormant'` |
+
+Ghost faces direction of travel each frame via `group.rotation.y = atan2(dx, dz)`.
+
+**Door colors:** All building doors changed from near-black `0x1a0e08` / `0x2a1a0a` to warm gray-brown `0x7a6655` — clearly reads as a closed door panel without blending into window darkness or building walls.
+
+### Phase 9 Visual Checklist
+
+- [ ] 3 white translucent ghosts float between buildings in the city
+- [ ] Ghost has rounded head, slightly wider-based body, two dark eyes
+- [ ] Ghost floats 1 unit above terrain — clearly not walking
+- [ ] Ghost bobs gently up/down while moving
+- [ ] Ghost faces direction of travel
+- [ ] Dark oval shadow on ground below each ghost
+- [ ] Shadow opacity increases as ghost descends closer to ground level
+- [ ] Ghost appears/disappears at buildings (not in open space)
+- [ ] Ghosts stagger their wait times — not all active simultaneously
+- [ ] Doors on buildings are visible gray-brown, not near-black
+- [ ] No fps drop with 3 ghosts active
+
+### Phase 9 Tests (add after visual validation)
+
+```
+src/ghosts.test.ts — ghost routing picks different src/dst; arrival detection
+```
 
 ---
 

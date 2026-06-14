@@ -15,6 +15,7 @@ import { createFlyingEye } from './monsters';
 import { createChests } from './chests';
 import { createBirds } from './birds';
 import { createCapybaras } from './capybaras';
+import { createGhosts } from './ghosts';
 // FUTURE Phase 2: import { applyDuskAtmosphere } from './atmosphere';
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -49,6 +50,7 @@ const { update: updatePlayer } = createPlayer(
 );
 const { update: updateBirds } = createBirds(scene, getHeightAt);
 const { update: updateCapybaras } = createCapybaras(scene, getHeightAt, excludeZones);
+const { update: updateGhosts } = createGhosts(scene, getHeightAt);
 
 const compass = createCompass(camera);
 initAudio();
@@ -68,6 +70,7 @@ function loop(): void {
   updateChests(dt, camera.position.x, camera.position.z);
   updateBirds(dt, camera.position.x, camera.position.z);
   updateCapybaras(dt);
+  updateGhosts(dt);
   compass.update();
 
   renderer.render(scene, camera);

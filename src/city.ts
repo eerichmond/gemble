@@ -120,7 +120,7 @@ function buildGasStation(scene: THREE.Scene, getHeightAt: HeightFn): BuildingBox
   addWindows(scene, bx, bz, G, w, h, d, 2, 1, 'wens');
 
   // Door on north face
-  const doorMat = new THREE.MeshLambertMaterial({ color: 0x1a0e08 });
+  const doorMat = new THREE.MeshLambertMaterial({ color: 0x7a6655 });
   addBox(scene, 1.4, 2.2, 0.12, bx, G + 1.1, bz + d / 2 + 0.06, doorMat);
 
   const canopyMat = new THREE.MeshLambertMaterial({ color: 0x9a8a6a });
@@ -156,7 +156,7 @@ function buildGroceryStore(scene: THREE.Scene, getHeightAt: HeightFn): BuildingB
   addWindows(scene, bx, bz, G, w, h, d, 4, 2, 'wens');
 
   // Door on north face (wide storefront entrance)
-  const doorMat = new THREE.MeshLambertMaterial({ color: 0x1a0e08 });
+  const doorMat = new THREE.MeshLambertMaterial({ color: 0x7a6655 });
   addBox(scene, 2.2, 2.8, 0.12, bx, G + 1.4, bz + d / 2 + 0.06, doorMat);
 
   const trim = new THREE.MeshLambertMaterial({ color: 0x5a5a4a });
@@ -182,7 +182,7 @@ function buildApartment(scene: THREE.Scene, getHeightAt: HeightFn): BuildingBox 
   addWindows(scene, bx, bz, G, w, h, d, 4, 10, 'wens');
 
   // Door on north face (outward normal +Z, facing toward player approaching from north)
-  const doorMat = new THREE.MeshLambertMaterial({ color: 0x1a0e08 });
+  const doorMat = new THREE.MeshLambertMaterial({ color: 0x7a6655 });
   addBox(scene, 1.8, 2.5, 0.12, bx, G + 1.25, bz + d / 2 + 0.06, doorMat);
 
   const ledge = new THREE.MeshLambertMaterial({ color: 0x4a4a5a });
@@ -216,7 +216,7 @@ function buildHouse(
   addWindows(scene, bx, bz, G, w, bodyH, d, 2, 1, 'wens');
 
   // Door on north face
-  const doorMat = new THREE.MeshLambertMaterial({ color: 0x2a1a0a });
+  const doorMat = new THREE.MeshLambertMaterial({ color: 0x7a6655 });
   addBox(scene, 1.2, 2.0, 0.12, bx, G + 1.0, bz + d / 2 + 0.06, doorMat);
 
   const roofMat = new THREE.MeshLambertMaterial({ color: 0x3a2a1a });
@@ -248,7 +248,7 @@ function buildCommercial(
   const G = getHeightAt(bx, bz);
   addBox(scene, w, h, d, bx, G + h / 2, bz, new THREE.MeshLambertMaterial({ color }));
   addWindows(scene, bx, bz, G, w, h, d, cols, rows, 'wens');
-  const doorMat = new THREE.MeshLambertMaterial({ color: 0x1a0e08 });
+  const doorMat = new THREE.MeshLambertMaterial({ color: 0x7a6655 });
   addBox(scene, 1.4, 2.2, 0.12, bx, G + 1.1, bz + d / 2 + 0.06, doorMat);
   return { minX: bx - w / 2, maxX: bx + w / 2, minZ: bz - d / 2, maxZ: bz + d / 2 };
 }

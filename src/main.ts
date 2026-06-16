@@ -51,7 +51,7 @@ const { update: updateChests, obstacles: chestObstacles } = createChests(
   (type) => inventory.pickupItem(type),
 );
 
-const { pondObstacle, cliffBox } = createWaterways(scene, getHeightAt);
+const { pondObstacle } = createWaterways(scene, getHeightAt);
 const flankTreePositions = createFlankTrees(scene, getHeightAt, [POND_EXCLUSION]);
 
 const { update: updatePlayer } = createPlayer(
@@ -59,7 +59,7 @@ const { update: updatePlayer } = createPlayer(
   getHeightAt,
   [...treePositions, ...flankTreePositions],
   [...mountainObstacles, ...gemObstacles, ...chestObstacles, ...crystalObstacles, pondObstacle],
-  [...collisionBoxes, cliffBox],
+  collisionBoxes,
 );
 const { update: updateBirds } = createBirds(scene, getHeightAt, allCircleZones);
 const { update: updateCapybaras, capybaraPositions } = createCapybaras(scene, getHeightAt, allCircleZones);

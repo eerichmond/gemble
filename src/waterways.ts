@@ -1,27 +1,37 @@
 import * as THREE from 'three';
 import type { CircleObstacle } from './terrain';
-import type { BuildingBox } from './city';
 
 // ── Phase 10 — Waterways ──────────────────────────────────────────────────────
-// Pond west of city → stream → cliff face → river at west map edge.
+// Winding river at the city/forest boundary (z≈-262), with freeway-style bridge
+// where the road crosses. East and west arms wind south along the city flanks.
+// Terrain carving in terrain.ts creates the embankment; water planes sit at RIVER_Y.
 
-// Pond at (-110, terrain, -340): directly west of the apartment building (25, -330).
-// Radius 11 ≈ apartment footprint width of 20. Stream runs due west to cliff at x=-185.
-// River (55 u wide) sits behind the cliff at y=-5, visible from cliff top.
-
-const POND_X      = -110;
-const POND_Z      = -340;
+const POND_X = -110;
+const POND_Z = -340;
 const POND_RADIUS = 11;
 
-const STREAM_Z    = -340;
-const STREAM_W    = 3.2;    // stream width in units
-const STREAM_SEGS = 8;      // terrain-sample segments
-const STREAM_X0   = POND_X - POND_RADIUS - 0.5; // -121.5 (west edge of pond + gap)
-const STREAM_X1   = -185;   // cliff base
+// Water surface sits inside the carved channel (terrain.ts carves 6 u deep; flat
+// terrain≈0 → channel floor≈-6; RIVER_Y=-3 gives ~3 u visible water depth).
+const RIVER_Y = -3.0;
+const ARM_Y   = -2.5; // arms are shallower
 
-const CLIFF_X     = -189;   // cliff face center x
-const RIVER_Y     = -5;     // river surface (below typical terrain near cliff)
-const RIVER_W     = 55;     // well over 30-unit minimum
+// ── River spine waypoints — must match terrain.ts RIVER_*_SPINE exactly ───────
+const MAIN_SPINE: [number, number][] = [
+  [-250, -280], [-160, -270], [-80, -264], [-30, -262],
+  [4, -261], [35, -261], [90, -267], [165, -275], [250, -283],
+];
+const WEST_ARM: [number, number][] = [
+  [-80, -264], [-90, -305], [-102, -352], [-114, -400], [-118, -450],
+];
+const EAST_ARM: [number, number][] = [
+  [90, -267], [100, -312], [110, -358], [120, -408], [130, -450],
+];
+
+// Bridge geometry constants — kept in sync with road.ts makeBridgedHeight
+const BRIDGE_Z_CENTER = -265; // midpoint of z=-248..z=-282
+const BRIDGE_Z_HALF   = 17;   // half-length of bridge span
+const BANK_Y          = 0.8;  // approximate flat terrain y near crossing
+const ARCH_PEAK       = 0.8;  // peak arch height from road.ts
 
 function makeLcg(seed: number): () => number {
   let s = seed >>> 0;
@@ -29,6 +39,95 @@ function makeLcg(seed: number): () => number {
     s = Math.imul(s, 1664525) + 1013904223 >>> 0;
     return s / 0x100000000;
   };
+}
+
+// ── River ribbon builder ───────────────────────────────────────────────────────
+// Builds a flat horizontal ribbon at constant y following a spine, with `width`
+// world units across. Terrain carving makes the banks visible above the water.
+
+function buildRiverRibbon(
+  pts: [number, number][],
+  y: number,
+  width: number,
+  mat: THREE.Material,
+  scene: THREE.Scene,
+): void {
+  const pos: number[] = [], uvs: number[] = [], idx: number[] = [];
+  let vAcc = 0;
+
+  for (let i = 0; i < pts.length; i++) {
+    const [cx, cz] = pts[i]!;
+    if (i > 0) {
+      const [px, pz] = pts[i - 1]!;
+      vAcc += Math.sqrt((cx - px) ** 2 + (cz - pz) ** 2);
+    }
+
+    // Smooth tangent from neighbours
+    let fx = 0, fz = 0;
+    if (i < pts.length - 1) { const q = pts[i + 1]!; fx += q[0] - cx; fz += q[1] - cz; }
+    if (i > 0)               { const q = pts[i - 1]!; fx += cx - q[0]; fz += cz - q[1]; }
+    const len = Math.sqrt(fx * fx + fz * fz);
+    if (len > 0) { fx /= len; fz /= len; }
+    const rx = fz, rz = -fx; // right vector
+
+    for (const s of [0, 1] as const) {
+      const side = (s - 0.5) * width;
+      pos.push(cx + rx * side, y, cz + rz * side);
+      uvs.push(s, vAcc / width);
+    }
+    if (i > 0) {
+      const b = (i - 1) * 2;
+      idx.push(b, b + 2, b + 1, b + 1, b + 2, b + 3);
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  scene.add(new THREE.Mesh(geo, mat));
+}
+
+// ── Bridge visual structure ────────────────────────────────────────────────────
+// The road ribbon (from road.ts) already follows the arch. These pieces add the
+// visible concrete structure beneath: deck soffit, round piers, and railings.
+
+function buildBridge(scene: THREE.Scene): void {
+  const concreteMat = new THREE.MeshLambertMaterial({ color: 0x8a8a80 });
+  const darkMat     = new THREE.MeshLambertMaterial({ color: 0x606058 });
+
+  // Bridge deck soffit — flat slab visible above the water from the river bank.
+  // Slightly below the arched road surface so it reads as the deck underside.
+  const deckGeo = new THREE.BoxGeometry(20, 0.6, BRIDGE_Z_HALF * 2 + 4);
+  const deck = new THREE.Mesh(deckGeo, concreteMat);
+  deck.position.set(4, BANK_Y + ARCH_PEAK * 0.4, BRIDGE_Z_CENTER);
+  scene.add(deck);
+
+  // 4 round piers: 2 pairs at z=-256 and z=-272, spread either side of road centre.
+  // Height spans from 0.5 u below river surface to the deck underside.
+  const PIER_BOTTOM = RIVER_Y - 0.5;
+  const PIER_TOP    = BANK_Y + 0.2;
+  const PIER_H      = PIER_TOP - PIER_BOTTOM;
+  const PIER_CY     = PIER_BOTTOM + PIER_H / 2;
+  const pierGeo = new THREE.CylinderGeometry(0.7, 0.9, PIER_H, 8);
+  for (const bz of [-256, -272] as const) {
+    for (const bx of [-2, 10] as const) {
+      const pier = new THREE.Mesh(pierGeo, darkMat);
+      pier.position.set(bx, PIER_CY, bz);
+      scene.add(pier);
+    }
+  }
+
+  // Concrete railings along each edge of the bridge deck.
+  const RAILING_H   = 0.9;
+  const RAILING_Y   = BANK_Y + ARCH_PEAK * 0.5 + RAILING_H / 2; // approximate mid-arch
+  const railGeo = new THREE.BoxGeometry(0.45, RAILING_H, BRIDGE_Z_HALF * 2 + 2);
+  for (const rx of [-5.5, 13.5] as const) {
+    const rail = new THREE.Mesh(railGeo, concreteMat);
+    rail.position.set(rx, RAILING_Y, BRIDGE_Z_CENTER);
+    scene.add(rail);
+  }
 }
 
 // ── Pond ──────────────────────────────────────────────────────────────────────
@@ -65,7 +164,6 @@ function buildPondSurrounds(
   const rockMat = new THREE.MeshLambertMaterial({ color: 0x707060 });
   const bushMat = new THREE.MeshLambertMaterial({ color: 0x2a5a1a });
 
-  // 10 rocks in a loose ring 12–17 u from pond center
   for (let i = 0; i < 10; i++) {
     const angle = rng() * Math.PI * 2;
     const dist  = 12 + rng() * 5;
@@ -75,12 +173,10 @@ function buildPondSurrounds(
     const r     = 0.4 + rng() * 0.5;
     const geo   = new THREE.SphereGeometry(r, 7, 5);
     const mesh  = new THREE.Mesh(geo, rockMat);
-    // Bury slightly so only dome shows
     mesh.position.set(rx, ry - r * 0.3, rz);
     scene.add(mesh);
   }
 
-  // 7 bushes slightly further out (15–22 u)
   for (let i = 0; i < 7; i++) {
     const angle = rng() * Math.PI * 2;
     const dist  = 15 + rng() * 7;
@@ -96,106 +192,43 @@ function buildPondSurrounds(
   }
 }
 
-// ── Stream ────────────────────────────────────────────────────────────────────
-// Terrain-following ribbon: STREAM_SEGS segments, each sampling terrain height
-// at its center to handle sloping ground between pond and cliff.
-
-function buildStream(
-  scene: THREE.Scene,
-  getHeightAt: (x: number, z: number) => number,
-): void {
-  const totalLen  = STREAM_X1 - STREAM_X0; // negative (going west)
-  const segLen    = totalLen / STREAM_SEGS;
-  const streamMat = new THREE.MeshLambertMaterial({
-    color: 0x2a6a6a,
-    transparent: true,
-    opacity: 0.88,
-    depthWrite: false,
-  });
-
-  for (let i = 0; i < STREAM_SEGS; i++) {
-    const xCenter = STREAM_X0 + (i + 0.5) * segLen;
-    const y       = getHeightAt(xCenter, STREAM_Z) + 0.08;
-    const geo     = new THREE.PlaneGeometry(Math.abs(segLen) + 0.2, STREAM_W);
-    geo.rotateX(-Math.PI / 2);
-    const mesh = new THREE.Mesh(geo, streamMat);
-    mesh.position.set(xCenter, y, STREAM_Z);
-    scene.add(mesh);
-  }
-}
-
-// ── Cliff Face ────────────────────────────────────────────────────────────────
-// Tall rocky wall from z=-450 to z=+250 at x≈-185 to -193.
-// Two overlapping panels at slightly different heights/x give a craggy layered look.
-
-function buildCliff(
-  scene: THREE.Scene,
-  getHeightAt: (x: number, z: number) => number,
-): BuildingBox {
-  const CLIFF_DEPTH = 10;
-  const CLIFF_H     = 18;   // tall enough to be visible from 80+ u
-  const CLIFF_SPAN  = 710;  // z span: -450 to +260
-
-  // Base y: sample terrain at cliff midpoint; cliff face protrudes from ground up
-  const baseY = getHeightAt(CLIFF_X, -100);
-
-  const mat1 = new THREE.MeshLambertMaterial({ color: 0x3a3a30 });
-  const mat2 = new THREE.MeshLambertMaterial({ color: 0x2a2a20 });
-
-  // Main cliff slab
-  const geo1  = new THREE.BoxGeometry(CLIFF_DEPTH, CLIFF_H, CLIFF_SPAN);
-  const face1 = new THREE.Mesh(geo1, mat1);
-  face1.position.set(CLIFF_X, baseY + CLIFF_H * 0.5 - 2, -100);
-  scene.add(face1);
-
-  // Secondary jagged layer: slightly narrower, pushed forward, different height
-  const geo2  = new THREE.BoxGeometry(CLIFF_DEPTH * 0.6, CLIFF_H * 0.7, CLIFF_SPAN);
-  const face2 = new THREE.Mesh(geo2, mat2);
-  face2.position.set(CLIFF_X + 4, baseY + CLIFF_H * 0.35 - 2, -100);
-  scene.add(face2);
-
-  // Collision: AABB blocking player from crossing into the river
-  return { minX: CLIFF_X - CLIFF_DEPTH, maxX: CLIFF_X + 2, minZ: -450, maxZ: 260 };
-}
-
-// ── River ─────────────────────────────────────────────────────────────────────
-// Wide flat water plane behind the cliff, running the full north-south world extent.
-
-function buildRiver(scene: THREE.Scene): void {
-  // Center the river between cliff face and map edge
-  const cx = (CLIFF_X + (-250)) / 2; // ≈ -219.5
-
-  const geo = new THREE.PlaneGeometry(RIVER_W, 720);
-  geo.rotateX(-Math.PI / 2);
-  const mat = new THREE.MeshLambertMaterial({
-    color: 0x1a4a7a,
-    transparent: true,
-    opacity: 0.92,
-    depthWrite: false,
-  });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(cx, RIVER_Y, -100);
-  scene.add(mesh);
-}
-
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export interface WaterwaysResult {
   pondObstacle: CircleObstacle;
-  cliffBox: BuildingBox;
 }
 
 export function createWaterways(
   scene: THREE.Scene,
   getHeightAt: (x: number, z: number) => number,
 ): WaterwaysResult {
+  const waterMat = new THREE.MeshLambertMaterial({
+    color: 0x1a4a7a,
+    transparent: true,
+    opacity: 0.92,
+    depthWrite: false,
+  });
+  const armMat = new THREE.MeshLambertMaterial({
+    color: 0x1e5470,
+    transparent: true,
+    opacity: 0.88,
+    depthWrite: false,
+  });
+
+  // Main E-W crossing — 28-unit wide ribbon at RIVER_Y
+  buildRiverRibbon(MAIN_SPINE, RIVER_Y, 28, waterMat, scene);
+
+  // West and east arms winding south along city flanks — narrower, shallower
+  buildRiverRibbon(WEST_ARM, ARM_Y, 14, armMat, scene);
+  buildRiverRibbon(EAST_ARM, ARM_Y, 14, armMat, scene);
+
+  // Freeway bridge where the road crosses at z≈-265
+  buildBridge(scene);
+
   const pondObstacle = buildPond(scene, getHeightAt);
   buildPondSurrounds(scene, getHeightAt);
-  buildStream(scene, getHeightAt);
-  const cliffBox = buildCliff(scene, getHeightAt);
-  buildRiver(scene);
 
-  return { pondObstacle, cliffBox };
+  return { pondObstacle };
 }
 
 // Export pond position so trees.ts can exclude the pond area from flank placement

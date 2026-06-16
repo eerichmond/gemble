@@ -3,10 +3,10 @@ import { isKeyDown } from './input';
 import { buildLoot, type LootType } from './chests';
 
 // ── Inventory / Held-Item HUD (Phase 8b) ─────────────────────────────────────
-// The player can hold one item at a time (picked up from a chest).
-// Shift+Space: toggle the held-item view — the item appears at the bottom of
-// the screen as if the player is holding it in first-person.
-// The arm group is parented to the camera so it always follows the view.
+// Accumulated item list — each chest pickup appends to `items`.
+// Shift+Space cycles through them one at a time:
+//   press → show items[0], press → hide, press → show items[1], press → hide …
+// Wraps back to the first item after the last.
 
 export function createInventory(
   scene: THREE.Scene,
@@ -15,39 +15,47 @@ export function createInventory(
   pickupItem: (type: LootType) => void;
   update: () => void;
 } {
-  // The camera must be in the scene graph for its children to render.
   scene.add(camera);
 
   const armGroup = new THREE.Group();
-  // Slightly right, low, in front — typical first-person item position
   armGroup.position.set(0.30, -0.80, -1.50);
   armGroup.scale.setScalar(0.35);
   armGroup.rotation.set(0.15, -0.25, 0.05);
   armGroup.visible = false;
   camera.add(armGroup);
 
-  let heldType: LootType | null = null;
-  let shiftSpaceWasDown = false;
+  const items: LootType[] = [];
+  let nextIdx   = 0;    // index of the item to show on next "show" press
+  let showing   = false;
+  let wasDown   = false;
+
+  function showItem(type: LootType): void {
+    while (armGroup.children.length > 0) armGroup.remove(armGroup.children[0]!);
+    armGroup.add(buildLoot(type));
+    armGroup.visible = true;
+  }
 
   return {
     pickupItem(type: LootType): void {
-      heldType = type;
-      // Replace existing item mesh in armGroup
-      while (armGroup.children.length > 0) {
-        armGroup.remove(armGroup.children[0]!);
-      }
-      armGroup.add(buildLoot(type));
+      items.push(type);
     },
 
     update(): void {
       const shiftDown = isKeyDown('ShiftLeft') || isKeyDown('ShiftRight');
       const spaceDown = isKeyDown('Space');
-      const shiftSpaceDown = shiftDown && spaceDown;
-      const justPressed = shiftSpaceDown && !shiftSpaceWasDown;
-      shiftSpaceWasDown = shiftSpaceDown;
+      const down = shiftDown && spaceDown;
+      const justPressed = down && !wasDown;
+      wasDown = down;
 
-      if (justPressed && heldType !== null) {
-        armGroup.visible = !armGroup.visible;
+      if (!justPressed) return;
+
+      if (showing) {
+        armGroup.visible = false;
+        showing = false;
+      } else if (items.length > 0) {
+        showItem(items[nextIdx % items.length]!);
+        nextIdx = (nextIdx + 1) % items.length;
+        showing = true;
       }
     },
   };

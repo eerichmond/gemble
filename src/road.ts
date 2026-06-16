@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { CircleObstacle } from './terrain';
+import { riverChannelOffset } from './terrain';
 
 const ROAD_WIDTH = 12;
 const ROAD_HALF = ROAD_WIDTH / 2;
@@ -60,6 +61,25 @@ export function getRoadObstacles(): CircleObstacle[] {
   return obs;
 }
 
+// Returns a height function that bridges the road over the carved river channel.
+// In the bridge zone (z: -248→-282 at x≈4) it adds the carved depth back plus a
+// parabolic arch — the road surface gently rises 0.8 u at mid-span (~4.7% grade).
+function makeBridgedHeight(
+  getHeightAt: (x: number, z: number) => number,
+): (x: number, z: number) => number {
+  const Z1 = -248, Z2 = -282;
+  const X_CENTER = 4, X_HALF = 14;
+  const ARCH = 0.8;
+  return (x: number, z: number): number => {
+    if (z <= Z1 && z >= Z2 && Math.abs(x - X_CENTER) < X_HALF) {
+      const t = (z - Z1) / (Z2 - Z1); // 0=north bank, 1=south bank
+      const uncarved = getHeightAt(x, z) + riverChannelOffset(x, z);
+      return uncarved + ARCH * 4 * t * (1 - t);
+    }
+    return getHeightAt(x, z);
+  };
+}
+
 export function createRoad(
   scene: THREE.Scene,
   getHeightAt: (x: number, z: number) => number,
@@ -97,28 +117,29 @@ export function createRoad(
   const CITY_Y_DASH = CITY_Y + 0.08;  // centre dashes above asphalt
   const CITY_Y_EDGE = CITY_Y + 0.04;  // shoulder lines above asphalt
   const cityPts = sampleSpine(CITY_SPINE, 1.0);
+  const cityH = makeBridgedHeight(getHeightAt); // bridges over the carved river channel
 
   const asphaltMat = new THREE.MeshLambertMaterial({ color: 0x1e1e1e });
   scene.add(new THREE.Mesh(
-    buildRibbon(cityPts, getHeightAt, 0, CITY_ROAD_HALF, CITY_Y, 6, 9),
+    buildRibbon(cityPts, cityH, 0, CITY_ROAD_HALF, CITY_Y, 6, 9),
     asphaltMat,
   ));
 
   // Yellow dashed centre divider (between the two lanes)
   const dashMat = new THREE.MeshLambertMaterial({ map: buildDashTexture() });
   scene.add(new THREE.Mesh(
-    buildRibbon(cityPts, getHeightAt, 0, 0.25, CITY_Y_DASH, 8, 2),
+    buildRibbon(cityPts, cityH, 0, 0.25, CITY_Y_DASH, 8, 2),
     dashMat,
   ));
 
   // White shoulder lines at each road edge
   const cityLineMat = new THREE.MeshLambertMaterial({ color: 0xbbbbbb });
   scene.add(new THREE.Mesh(
-    buildRibbon(cityPts, getHeightAt, -(CITY_ROAD_HALF - LINE_HALF), LINE_HALF, CITY_Y_EDGE, 4, 2),
+    buildRibbon(cityPts, cityH, -(CITY_ROAD_HALF - LINE_HALF), LINE_HALF, CITY_Y_EDGE, 4, 2),
     cityLineMat,
   ));
   scene.add(new THREE.Mesh(
-    buildRibbon(cityPts, getHeightAt, CITY_ROAD_HALF - LINE_HALF, LINE_HALF, CITY_Y_EDGE, 4, 2),
+    buildRibbon(cityPts, cityH, CITY_ROAD_HALF - LINE_HALF, LINE_HALF, CITY_Y_EDGE, 4, 2),
     cityLineMat,
   ));
 

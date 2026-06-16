@@ -24,6 +24,55 @@ export function computeTerrainHeight(x: number, z: number): number {
   );
 }
 
+// ── River channel carving (Phase 10) ─────────────────────────────────────────
+// Spine waypoints for the winding city-entrance river.
+// Main crossing cuts the city/forest boundary at z≈-262; arms wind south along
+// the city flanks following the tree lines. Must stay in sync with waterways.ts.
+
+const RIVER_MAIN_SPINE: readonly [number, number][] = [
+  [-250, -280], [-160, -270], [-80, -264], [-30, -262],
+  [4, -261], [35, -261], [90, -267], [165, -275], [250, -283],
+] as const;
+
+const RIVER_WEST_SPINE: readonly [number, number][] = [
+  [-80, -264], [-90, -305], [-102, -352], [-114, -400], [-118, -450],
+] as const;
+
+const RIVER_EAST_SPINE: readonly [number, number][] = [
+  [90, -267], [100, -312], [110, -358], [120, -408], [130, -450],
+] as const;
+
+function distToSpine(spine: readonly [number, number][], x: number, z: number): number {
+  let best = Infinity;
+  for (let i = 0; i < spine.length - 1; i++) {
+    const [ax, az] = spine[i]!;
+    const [bx, bz] = spine[i + 1]!;
+    const dx = bx - ax, dz = bz - az;
+    const len2 = dx * dx + dz * dz;
+    const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2)) : 0;
+    const ex = ax + t * dx - x, ez = az + t * dz - z;
+    best = Math.min(best, ex * ex + ez * ez);
+  }
+  return Math.sqrt(best);
+}
+
+function carveBank(d: number, inner: number, outer: number, depth: number): number {
+  if (d >= outer) return 0;
+  if (d <= inner) return depth;
+  return depth * (1 - (d - inner) / (outer - inner));
+}
+
+// Returns how many units to carve DOWN at (x, z) for the river channel.
+// Main: 28-unit flat bottom (inner=14), tapers to 0 at 44 units (outer=22), depth 6.
+// Arms: 14-unit flat bottom (inner=7), tapers to 0 at 26 units (outer=13), depth 4.
+export function riverChannelOffset(x: number, z: number): number {
+  return Math.max(
+    carveBank(distToSpine(RIVER_MAIN_SPINE, x, z), 14, 22, 6),
+    carveBank(distToSpine(RIVER_WEST_SPINE, x, z), 7, 13, 4),
+    carveBank(distToSpine(RIVER_EAST_SPINE, x, z), 7, 13, 4),
+  );
+}
+
 export function createTerrain(scene: THREE.Scene): TerrainResult {
   // Extend 200 units south vs. the original 500×500 to cover the city zone.
   // translate(0, 100, 0) shifts the plane before rotation so after rotateX
@@ -42,12 +91,14 @@ export function createTerrain(scene: THREE.Scene): TerrainResult {
     const x = positions.getX(i);
     const z = positions.getZ(i);
     const rawH = computeTerrainHeight(x, z);
+    let h: number;
     if (z < -180) {
       const flattenT = Math.min(1, (-z - 180) / 80); // 0 at z=-180, 1.0 at z=-260+
-      positions.setY(i, rawH * (1 - flattenT * 0.92)); // ≈8% amplitude in city
+      h = rawH * (1 - flattenT * 0.92); // ≈8% amplitude in city
     } else {
-      positions.setY(i, rawH);
+      h = rawH;
     }
+    positions.setY(i, h - riverChannelOffset(x, z));
   }
   positions.needsUpdate = true;
   geometry.computeVertexNormals();

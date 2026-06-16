@@ -91,25 +91,39 @@ function buildOne(
   // ── Body — oval ellipsoid ──────────────────────────────────────────────────
   const body = new THREE.Mesh(_bodyGeo, _brown);
   body.scale.set(bW / 2, bH / 2, bL / 2);
-  body.position.y = lH + bH / 2;
+  const bodyCenterY = lH + bH / 2;
+  body.position.y = bodyCenterY;
   root.add(body);
 
-  // ── Legs — four black sticks at body corners ───────────────────────────────
+  // ── Legs — four black sticks reaching up to the oval body bottom ───────────
+  // Position each leg under the oval at 30% of the X/Z semi-axes so it lands
+  // within the ellipsoid's footprint and reaches the curved underside.
+  const legOffX = bW * 0.30;
+  const legOffZ = bL * 0.30;
   const legCorners: [number, number][] = [
-    [-bW / 2 + lW / 2,  bL / 2 - lW / 2],
-    [ bW / 2 - lW / 2,  bL / 2 - lW / 2],
-    [-bW / 2 + lW / 2, -bL / 2 + lW / 2],
-    [ bW / 2 - lW / 2, -bL / 2 + lW / 2],
+    [-legOffX,  legOffZ],
+    [ legOffX,  legOffZ],
+    [-legOffX, -legOffZ],
+    [ legOffX, -legOffZ],
   ];
   for (const [lx, lz] of legCorners) {
-    const leg = new THREE.Mesh(d.legGeo, _black);
-    leg.position.set(lx, lH / 2, lz);
+    const xn = lx / (bW / 2);
+    const zn = lz / (bL / 2);
+    const r2 = xn * xn + zn * zn;
+    const surfaceDepth = r2 < 1 ? Math.sqrt(1 - r2) : 0;
+    const attachY = bodyCenterY - (bH / 2) * surfaceDepth; // body bottom at this corner
+    const legH = Math.max(attachY, 0.05);
+    const legGeo = new THREE.BoxGeometry(lW, legH, lW);
+    const leg = new THREE.Mesh(legGeo, _black);
+    leg.position.set(lx, legH / 2, lz);
     root.add(leg);
   }
 
-  // ── Head group (pivots at neck, bobs while grazing) ────────────────────────
+  // ── Head group (pivots at front of body, bobs while grazing) ──────────────
+  // headGroup is at body front tip height (bodyCenterY) so the head back face
+  // touches the body front tip with no gap.
   const headGroup = new THREE.Group();
-  headGroup.position.set(0, lH + bH, bL / 2);
+  headGroup.position.set(0, bodyCenterY, bL / 2);
   root.add(headGroup);
 
   const head = new THREE.Mesh(_headGeo, _brown);
@@ -117,9 +131,13 @@ function buildOne(
   head.position.set(0, hrY, hrZ);
   headGroup.add(head);
 
+  // Ears sit on the head sphere crown at the ear's (x, z) position.
+  // The sphere surface at x_n=0.72, z_n=0.55 has y_n=sqrt(1-0.72²-0.55²)≈0.42,
+  // so ear bottom = head_center_y + hrY*0.42 (sphere surface) = hrY*(1+0.42).
+  const earSurfY = hrY * (1 + Math.sqrt(Math.max(0, 1 - 0.72 * 0.72 - 0.55 * 0.55)));
   for (const sx of [-1, 1] as const) {
     const ear = new THREE.Mesh(d.earGeo, _brown);
-    ear.position.set(sx * hrX * 0.72, hrY * 2 + eH / 2, hrZ * 0.55);
+    ear.position.set(sx * hrX * 0.72, earSurfY + eH / 2, hrZ * 0.55);
     headGroup.add(ear);
   }
 

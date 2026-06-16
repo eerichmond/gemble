@@ -482,7 +482,9 @@ Tracks what the player picked up from chests. Shows it as a first-person "held" 
 
 **Pickup flow:** `createChests` accepts `onLootPickedUp?: (type: LootType) => void`. Called when player takes loot. Plain Space at chest triggers interaction; Shift+Space is reserved for inventory.
 
-**Held view:** `armGroup` (THREE.Group) parented to camera at `(0.3, -0.8, -1.5)`, scaled `0.35×`, slight tilt. Camera added to scene so children render. Toggled visible on Shift+Space.
+**Held view:** `armGroup` (THREE.Group) parented to camera at `(0.3, -0.8, -1.5)`, scaled `0.35×`, slight tilt. Camera added to scene so children render.
+
+**Shift+Space cycle:** each press toggles show/hide; successive show presses cycle through all collected items in order (wraps). Pattern: show item[0] → hide → show item[1] → hide → …
 
 **API:** `createInventory(scene, camera) → { pickupItem(type), update() }`
 
@@ -525,68 +527,64 @@ Tracks what the player picked up from chests. Shows it as a first-person "held" 
 
 ---
 
-## Phase 10 — Forest Flanks, Pond, Stream & River
+## Phase 10 — Forest Flanks, Pond & City-Entrance River
 
-**Goal:** Add natural variety flanking the city. Dense trees on both sides make the city feel enclosed in wilderness. A pond west of the city (same footprint as the apartment) feeds a stream to a cliff edge, where a wide river runs along the west map boundary.
+**Goal:** Add natural variety flanking the city. Dense trees on both sides make the city feel enclosed. A winding river separates the forest from the city at z≈-262, flowing under a freeway bridge where the road crosses. East and west arms wind south along the city flanks. A pond sits west of the city near the river arm.
 
 **New files:** `src/waterways.ts`  
-**Modified files:** `src/trees.ts` (extra flank tree pass), `src/main.ts` (wire waterways obstacles into player)
+**Modified files:** `src/terrain.ts` (river channel carving), `src/road.ts` (bridge height), `src/trees.ts` (flank tree pass), `src/main.ts`
 
 ### City Flank Trees
 
-Extra tree placement pass specifically for the east/west corridors flanking the city:
+Extra tree pass for east/west corridors flanking the city:
 - **West flank:** x:[-220, -90], z:[-260, -445]
 - **East flank:** x:[90, 220], z:[-260, -445]
-- ~50 trees per side (seeded LCG seed 303, mix of pines and deciduous matching existing geometry)
-- Same exclusion rules as main forest: road corridor, mountain bases, city buildings; plus 20-unit pond exclusion for west flank
+- ~50 trees per side (seeded LCG seed 303, mix of pines and deciduous)
+- 20-unit pond exclusion for west flank placement
+
+### River Channel Carving
+
+`riverChannelOffset(x, z)` in `terrain.ts` is subtracted from each vertex's height during mesh generation. The mesh's `getHeightAt` Raycaster then returns the carved height automatically.
+
+- **Main crossing:** 28-unit flat bottom (inner=14), tapers over 8 u (outer=22), depth 6 u
+- **Arms:** 14-unit flat bottom (inner=7), tapers over 6 u (outer=13), depth 4 u
+- Terrain near z=-262 is nearly flat (~0 after flattenT=1); channel floor ≈ -6; water at y=-3 shows ~3 u depth
+
+### Winding River
+
+Three winding water ribbons at constant y, built in `waterways.ts`:
+
+- **Main (E-W crossing):** x:[-250,-260] → [250,-283] winding through [4,-261] at the road; 28 u wide at y=-3.0
+- **West arm:** [-80,-264] winding south to [-118,-450]; 14 u wide at y=-2.5
+- **East arm:** [90,-267] winding south to [130,-450]; 14 u wide at y=-2.5
+
+River spines in `terrain.ts` and `waterways.ts` must stay in sync — both reference the same waypoints.
+
+### Freeway Bridge (z: -248 → -282)
+
+Road ribbons use `makeBridgedHeight(getHeightAt)` in `road.ts`: adds back the carved channel depth plus a parabolic arch (peak 0.8 u at z=-265 ≈ 4.7% grade) so the road surface clears the river.
+
+Visual bridge elements in `waterways.ts`:
+- Concrete deck soffit (`BoxGeometry 20×0.6×38`) centered at (4, BANK_Y+0.3, -265)
+- 4 round piers (`CylinderGeometry(0.7, 0.9, ~5)`) at (±2 from x=4, z=-256 and z=-272), from 0.5 u below river to bank level
+- Two concrete railings (`BoxGeometry 0.45×0.9×36`) along bridge edges
 
 ### Pond (~-110, terrain, -340)
 
-Circular water body directly west of city mid-section (apartment is at x=25, z=-330; this mirrors it on the other side of the road).
-
-- `CircleGeometry` radius 11, blue-teal `MeshLambertMaterial` (`0x2a5a8a`), +0.05 u above terrain
-- 8–12 rocks (existing boulder geometry) + 6–8 bushes in a loose ring 12–18 u from center (seeded LCG)
-- `CircleObstacle` radius 11.5 — player can't walk into water
-- Trees cleared in a 20-unit exclusion radius passed to the flank tree placement
-
-### Stream
-
-Narrow (3-unit-wide) water ribbon connecting pond's west edge to the cliff base.
-
-- Flat terrain-conforming strip: multiple 1-unit-step `PlaneGeometry` segments, each laid flat via `rotateX(-PI/2)`
-- Runs due west: x:[-122, -185], z≈-340
-- Color `0x2a6a6a` (slightly greener than pond — suggests moving water vs still)
-- No player collision — visual only
-
-### Cliff Face (x ≈ -185)
-
-Tall rocky wall the full north-south map extent, blocking passage into the river valley.
-
-- Several overlapping `BoxGeometry` panels at varying heights for a craggy look; dark rocky gray `0x3a3a3a` / `0x2a2a2a`
-- Player collision: a single `BuildingBox` AABB `{ minX: -195, maxX: -183, minZ: -450, maxZ: 250 }` — same system as city buildings
-- Cliff rises ~14 units above terrain, so top is visible from distance; river is visible below
-
-### River (x: -195 to -250)
-
-Wide flat water plane behind the cliff, full north-south extent.
-
-- `PlaneGeometry(55, 700)` rotated flat, centered at x≈-222, z=-100, y=-5 (well below cliff-top terrain)
-- Deep blue `MeshLambertMaterial` (`0x1a4a7a`, opacity 0.92, transparent, depthWrite: false)
-- 55 units wide — exceeds the 30-unit minimum
-- No extra collision needed — cliff AABB already blocks player
+- `CircleGeometry` radius 11, blue `0x2a5a8a`, +0.05 u above terrain
+- 10 rocks + 7 bushes in loose ring 12–22 u from center (seeded LCG 303)
+- `CircleObstacle` radius 11.5 — player can't walk in
+- The river west arm passes ~9 u from the pond center; carved terrain visually connects them
 
 ### Phase 10 Visual Checklist
 
-- [ ] Dense trees visible on both sides of the city (east and west) when standing at city entrance
-- [ ] Pond clearly visible from city west side — blue-teal flat disk
+- [ ] Dense trees visible on both sides of the city (east and west)
+- [ ] River canyon visible at city entrance — carved embankment, water below terrain level
+- [ ] River winding E-W at z≈-262, arms curving south along city flanks
+- [ ] Freeway bridge spanning the river where road crosses — arch, piers, railings
+- [ ] Pond visible west of city mid-section — blue disk near the river arm
 - [ ] Rocks and bushes clustered at pond edges
-- [ ] No trees growing in/over the pond
-- [ ] Stream visible as a narrow ribbon of water running west from the pond
-- [ ] Stream meets the cliff face naturally
-- [ ] Cliff face is a tall rocky wall — visible from 80+ units
-- [ ] River visible behind the cliff — deep blue, clearly wide (>30 u)
 - [ ] Player blocked from entering pond (CircleObstacle)
-- [ ] Player blocked from crossing cliff face (BuildingBox AABB)
 - [ ] No fps drop with all elements added
 
 ---

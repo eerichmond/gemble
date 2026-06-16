@@ -1,8 +1,8 @@
 # Gemble
 
-A first-person mystery built entirely in the browser. Explore a fog-lit pine forest and an abandoned city — somewhere in it is a hidden gem.
+Explore a fog-lit forest and abandoned city in this mysterious first-person browser game. No download needed — just open and play.
 
-**[▶ Play it live at gemble.eerichmond.com](https://gemble.eerichmond.com)**
+**[▶ Play it now at gemble.eerichmond.com](https://gemble.eerichmond.com)**
 
 ![The hidden gem glowing in the forest, surrounded by purple crystal pillars](docs/gemble-screenshot-purple-diamond.webp)
 
@@ -10,11 +10,11 @@ A first-person mystery built entirely in the browser. Explore a fog-lit pine for
 
 ## About
 
-Gemble is a personal project to push the limits of what's possible in a browser with no game engine. Every piece of geometry — the trees, the buildings, the capybaras, the crystal-crowned troll — is hand-built using [Three.js](https://threejs.org) primitives. No Unity. No Godot. Just WebGL, TypeScript, and math.
+Gemble is a fun browser game built for the joy of exploration. Wander through a misty pine forest at dusk, find the road, and make your way into an eerie abandoned city. Keep your eyes open — there are creatures lurking, treasure chests to find, and a hidden gem somewhere out there.
 
-The world is small but dense: a rolling dusk forest gives way to a gravel road that eventually opens into a flat, eerie city. The atmosphere is the point — heavy fog, moonlight through the pines, the distant glow of a creature's eye.
+No installation, no accounts. Just arrow keys and a sense of adventure.
 
-**Status:** Active development. The gem is in the world; a win condition isn't implemented yet.
+**Status:** Active development — more surprises coming.
 
 ---
 

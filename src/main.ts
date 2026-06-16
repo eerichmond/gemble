@@ -18,7 +18,6 @@ import { createCapybaras } from './capybaras';
 import { createGhosts } from './ghosts';
 import {
   createWaterways,
-  POND_EXCLUSION,
   RIVER_WEST_EXCLUSIONS,
   RIVER_EAST_EXCLUSIONS,
   RIVER_MAIN_EXCLUSIONS,
@@ -57,9 +56,8 @@ const { update: updateChests, obstacles: chestObstacles } = createChests(
   type => inventory.pickupItem(type),
 );
 
-const { pondObstacle } = createWaterways(scene, getHeightAt);
+createWaterways(scene);
 const flankTreePositions = createFlankTrees(scene, getHeightAt, [
-  POND_EXCLUSION,
   ...RIVER_MAIN_EXCLUSIONS,
   ...RIVER_WEST_EXCLUSIONS,
   ...RIVER_EAST_EXCLUSIONS,
@@ -71,7 +69,7 @@ const { update: updatePlayer } = createPlayer(
   camera,
   playerHeightAt,
   [...treePositions, ...flankTreePositions],
-  [...mountainObstacles, ...gemObstacles, ...chestObstacles, ...crystalObstacles, pondObstacle],
+  [...mountainObstacles, ...gemObstacles, ...chestObstacles, ...crystalObstacles],
   collisionBoxes,
 );
 const { update: updateBirds } = createBirds(scene, getHeightAt, allCircleZones);

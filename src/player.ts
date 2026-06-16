@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import type * as THREE from 'three';
 import { isKeyDown } from './input';
 import type { TreePosition } from './trees';
 import type { CircleObstacle } from './terrain';

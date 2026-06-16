@@ -8,7 +8,7 @@ import type { BuildingBox } from './city';
 const EYE_X = 0;
 const EYE_Z = -310;
 
-const _ph = (color: number, emissive = 0, ei = 0) =>
+const _ph = (color: number, emissive = 0, ei = 0): THREE.MeshPhongMaterial =>
   new THREE.MeshPhongMaterial({ color, emissive, emissiveIntensity: ei });
 
 export function createFlyingEye(
@@ -114,7 +114,7 @@ function safePos(
   circles: CircleObstacle[],
   boxes: BuildingBox[] = [],
 ): [number, number] {
-  const ok = (px: number, pz: number) =>
+  const ok = (px: number, pz: number): boolean =>
     clearOfCircles(px, pz, circles) && clearOfBoxes(px, pz, boxes);
   if (ok(x, z)) return [x, z];
   for (const [ox, oz] of [
@@ -174,8 +174,9 @@ function buildCrystalTroll(
     emissive: new THREE.Color(0x1e4d88),
   });
 
-  const cap = (r: number, l: number) => new THREE.CapsuleGeometry(r, l, 4, 8);
-  const sph = (r: number) => new THREE.SphereGeometry(r, 10, 8);
+  const cap = (r: number, l: number): THREE.CapsuleGeometry =>
+    new THREE.CapsuleGeometry(r, l, 4, 8);
+  const sph = (r: number): THREE.SphereGeometry => new THREE.SphereGeometry(r, 10, 8);
 
   // ── Legs ────────────────────────────────────────────────────────────────────
   for (const sx of [-0.13, 0.13]) {
@@ -302,8 +303,9 @@ function buildWingedMonster(
   const eyeD = lam(0x080808);
   const hair = lam(0x1a1828);
 
-  const cap = (r: number, l: number) => new THREE.CapsuleGeometry(r, l, 4, 8);
-  const sph = (r: number) => new THREE.SphereGeometry(r, 10, 8);
+  const cap = (r: number, l: number): THREE.CapsuleGeometry =>
+    new THREE.CapsuleGeometry(r, l, 4, 8);
+  const sph = (r: number): THREE.SphereGeometry => new THREE.SphereGeometry(r, 10, 8);
 
   // ── Legs ────────────────────────────────────────────────────────────────────
   for (const sx of [-0.1, 0.1]) {

@@ -192,7 +192,7 @@ export function createFlankTrees(
   const dummy = new THREE.Object3D();
 
   const westExclude: CircleObstacle[] = [...extraExclude];
-  const eastExclude: CircleObstacle[] = [];
+  const eastExclude: CircleObstacle[] = [...extraExclude];
 
   placeFlankPines(scene, getHeightAt, rng, dummy, treePositions, -220, -90, westExclude);
   placeFlankPines(scene, getHeightAt, rng, dummy, treePositions, 90, 220, eastExclude);
@@ -302,7 +302,7 @@ function placeFlankDeciduous(
     dummy.position.set(x, groundY + 3.4 * scale, z);
     dummy.scale.set(scale * 2.2, scale * 1.4, scale * 2.2);
     dummy.updateMatrix();
-    canopyMeshes[colorIdx]!.setMatrixAt(instanceIdx, dummy.matrix);
+    canopyMeshes[colorIdx].setMatrixAt(instanceIdx, dummy.matrix);
     dummy.scale.setScalar(scale);
   }
   trunk.instanceMatrix.needsUpdate = true;

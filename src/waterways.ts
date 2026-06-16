@@ -6,10 +6,6 @@ import type { CircleObstacle } from './terrain';
 // where the road crosses. East and west arms wind south along the city flanks.
 // Terrain carving in terrain.ts creates the embankment; water planes sit at RIVER_Y.
 
-const POND_X = -110;
-const POND_Z = -340;
-const POND_RADIUS = 11;
-
 // Water surface sits inside the carved channel (terrain.ts carves 6 u deep; flat
 // terrain≈0 → channel floor≈-6; RIVER_Y=-3 gives ~3 u visible water depth).
 const RIVER_Y = -3.0;
@@ -42,24 +38,12 @@ const EAST_ARM: [number, number][] = [
   [130, -450],
 ];
 
-// Bridge geometry constants — kept in sync with road.ts makeBridgedHeight
-const BRIDGE_Z_CENTER = -259; // midpoint of z=-235..z=-282
-const BRIDGE_Z_HALF = 24; // half-length of bridge span
-const BANK_Y = 0; // road sits at y≈0 (flat, no arch)
-const ARCH_PEAK = 0; // no arch — flat bridge
-
-function makeLcg(seed: number): () => number {
-  let s = seed >>> 0;
-  return () => {
-    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
-    return s / 0x100000000;
-  };
-}
+// Bridge spans z=-285 (city side) to z=-237 (gravel side) — matches road endpoints
+// and makeBridgedHeight zone in road.ts.
+const BRIDGE_Z_CENTER = -261; // midpoint of z=-237..z=-285
+const BRIDGE_Z_HALF = 24; // half-length: 48-unit span
 
 // ── River ribbon builder ───────────────────────────────────────────────────────
-// Builds a flat horizontal ribbon at constant y following a spine, with `width`
-// world units across. Terrain carving makes the banks visible above the water.
-
 function buildRiverRibbon(
   pts: [number, number][],
   y: number,
@@ -73,22 +57,21 @@ function buildRiverRibbon(
   let vAcc = 0;
 
   for (let i = 0; i < pts.length; i++) {
-    const [cx, cz] = pts[i]!;
+    const [cx, cz] = pts[i];
     if (i > 0) {
-      const [px, pz] = pts[i - 1]!;
+      const [px, pz] = pts[i - 1];
       vAcc += Math.sqrt((cx - px) ** 2 + (cz - pz) ** 2);
     }
 
-    // Smooth tangent from neighbours
     let fx = 0,
       fz = 0;
     if (i < pts.length - 1) {
-      const q = pts[i + 1]!;
+      const q = pts[i + 1];
       fx += q[0] - cx;
       fz += q[1] - cz;
     }
     if (i > 0) {
-      const q = pts[i - 1]!;
+      const q = pts[i - 1];
       fx += cx - q[0];
       fz += cz - q[1];
     }
@@ -98,7 +81,7 @@ function buildRiverRibbon(
       fz /= len;
     }
     const rx = fz,
-      rz = -fx; // right vector
+      rz = -fx;
 
     for (const s of [0, 1] as const) {
       const side = (s - 0.5) * width;
@@ -119,29 +102,71 @@ function buildRiverRibbon(
   scene.add(new THREE.Mesh(geo, mat));
 }
 
+// ── Approach wedge ────────────────────────────────────────────────────────────
+// Tapered concrete block that ramps from terrain level to bridge deck height (0.2).
+// zBridge = z at bridge end (top=0.2), zFar = z at road end (tapers to ground).
+function buildApproachWedge(
+  scene: THREE.Scene,
+  color: number,
+  centerX: number,
+  halfW: number,
+  zBridge: number,
+  zFar: number,
+): void {
+  const TOP = 0.2;
+  // prettier-ignore
+  const positions = new Float32Array([
+    centerX - halfW, 0,   zBridge, // 0 bridge-left-bot
+    centerX + halfW, 0,   zBridge, // 1 bridge-right-bot
+    centerX - halfW, 0,   zFar,    // 2 far-left-bot
+    centerX + halfW, 0,   zFar,    // 3 far-right-bot
+    centerX - halfW, TOP, zBridge, // 4 bridge-left-top
+    centerX + halfW, TOP, zBridge, // 5 bridge-right-top
+    centerX - halfW, 0,   zFar,    // 6 far-left-top (flush with ground)
+    centerX + halfW, 0,   zFar,    // 7 far-right-top
+  ]);
+  // prettier-ignore
+  const indices = [
+    4, 7, 5,  4, 6, 7, // top
+    0, 5, 4,  0, 1, 5, // bridge face
+    2, 6, 4,  2, 4, 0, // left side
+    3, 5, 7,  3, 1, 5, // right side
+    0, 2, 1,  1, 2, 3, // bottom
+  ];
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide });
+  scene.add(new THREE.Mesh(geo, mat));
+}
+
 // ── Bridge visual structure ────────────────────────────────────────────────────
-// The road ribbon (from road.ts) already follows the arch. These pieces add the
-// visible concrete structure beneath: deck soffit, round piers, and railings.
+// Standalone concrete bridge spanning z=-285 to z=-237 (road endpoints). No road
+// overlay — the bridge IS the road surface. Piers run from river floor to deck soffit.
+// Approach ramps taper from bridge deck height down to terrain on each road end.
 
 function buildBridge(scene: THREE.Scene): void {
   const concreteMat = new THREE.MeshLambertMaterial({ color: 0x8a8a80 });
   const darkMat = new THREE.MeshLambertMaterial({ color: 0x606058 });
 
-  // Bridge deck soffit — flat slab visible above the water from the river bank.
-  // Slightly below the arched road surface so it reads as the deck underside.
-  const deckGeo = new THREE.BoxGeometry(20, 0.6, BRIDGE_Z_HALF * 2 + 4);
+  const DECK_TOP = 0.2;
+  const DECK_H = 0.4;
+  const DECK_CY = DECK_TOP - DECK_H / 2; // center y = 0.0
+  const SPAN = BRIDGE_Z_HALF * 2; // 48 units
+
+  // Deck slab — the walkable surface
+  const deckGeo = new THREE.BoxGeometry(20, DECK_H, SPAN);
   const deck = new THREE.Mesh(deckGeo, concreteMat);
-  deck.position.set(4, BANK_Y + ARCH_PEAK * 0.4, BRIDGE_Z_CENTER);
+  deck.position.set(4, DECK_CY, BRIDGE_Z_CENTER);
   scene.add(deck);
 
-  // 4 round piers: 2 pairs at z=-248 and z=-272, spread either side of road centre.
-  // Height spans from 0.5 u below river surface to the deck underside.
-  const PIER_BOTTOM = RIVER_Y - 0.5;
-  const PIER_TOP = BANK_Y + 0.2;
-  const PIER_H = PIER_TOP - PIER_BOTTOM;
+  // Piers — two pairs, symmetric about road centre (x=4)
+  const PIER_BOTTOM = RIVER_Y - 0.5; // -3.5
+  const PIER_H = DECK_CY - DECK_H / 2 - PIER_BOTTOM; // soffit to river bed
   const PIER_CY = PIER_BOTTOM + PIER_H / 2;
   const pierGeo = new THREE.CylinderGeometry(0.7, 0.9, PIER_H, 8);
-  for (const bz of [-248, -272] as const) {
+  for (const bz of [-250, -272] as const) {
     for (const bx of [-2, 10] as const) {
       const pier = new THREE.Mesh(pierGeo, darkMat);
       pier.position.set(bx, PIER_CY, bz);
@@ -149,89 +174,38 @@ function buildBridge(scene: THREE.Scene): void {
     }
   }
 
-  // Concrete railings along each edge of the bridge deck.
-  const RAILING_H = 0.9;
-  const RAILING_Y = BANK_Y + ARCH_PEAK * 0.5 + RAILING_H / 2; // approximate mid-arch
-  const railGeo = new THREE.BoxGeometry(0.45, RAILING_H, BRIDGE_Z_HALF * 2 + 2);
+  // Railings — full span, sitting on deck top
+  const RAIL_H = 0.9;
+  const RAIL_CY = DECK_TOP + RAIL_H / 2; // 0.65
+  const railGeo = new THREE.BoxGeometry(0.45, RAIL_H, SPAN + 2);
   for (const rx of [-5.5, 13.5] as const) {
     const rail = new THREE.Mesh(railGeo, concreteMat);
-    rail.position.set(rx, RAILING_Y, BRIDGE_Z_CENTER);
+    rail.position.set(rx, RAIL_CY, BRIDGE_Z_CENTER);
     scene.add(rail);
   }
-}
 
-// ── Pond ──────────────────────────────────────────────────────────────────────
+  // Approach ramps — taper from deck height (0.2) down to terrain on each end.
+  // North (gravel side): z=-237..z=-231.  South (city side): z=-285..z=-291.
+  buildApproachWedge(scene, 0x8a8a80, 4, 11, -237, -231);
+  buildApproachWedge(scene, 0x8a8a80, 4, 11, -285, -291);
 
-function buildPond(
-  scene: THREE.Scene,
-  getHeightAt: (x: number, z: number) => number,
-): CircleObstacle {
-  const y = getHeightAt(POND_X, POND_Z) + 0.05;
-
-  const geo = new THREE.CircleGeometry(POND_RADIUS, 40);
-  geo.rotateX(-Math.PI / 2);
-  const mat = new THREE.MeshLambertMaterial({
-    color: 0x2a5a8a,
-    transparent: true,
-    opacity: 0.9,
-    depthWrite: false,
-  });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(POND_X, y, POND_Z);
-  scene.add(mesh);
-
-  return { x: POND_X, z: POND_Z, radius: POND_RADIUS + 0.5 };
-}
-
-// ── Pond surrounds — rocks and bushes ─────────────────────────────────────────
-
-function buildPondSurrounds(
-  scene: THREE.Scene,
-  getHeightAt: (x: number, z: number) => number,
-): void {
-  const rng = makeLcg(303);
-
-  const rockMat = new THREE.MeshLambertMaterial({ color: 0x707060 });
-  const bushMat = new THREE.MeshLambertMaterial({ color: 0x2a5a1a });
-
-  for (let i = 0; i < 10; i++) {
-    const angle = rng() * Math.PI * 2;
-    const dist = 12 + rng() * 5;
-    const rx = POND_X + Math.cos(angle) * dist;
-    const rz = POND_Z + Math.sin(angle) * dist;
-    const ry = getHeightAt(rx, rz);
-    const r = 0.4 + rng() * 0.5;
-    const geo = new THREE.SphereGeometry(r, 7, 5);
-    const mesh = new THREE.Mesh(geo, rockMat);
-    mesh.position.set(rx, ry - r * 0.3, rz);
-    scene.add(mesh);
-  }
-
-  for (let i = 0; i < 7; i++) {
-    const angle = rng() * Math.PI * 2;
-    const dist = 15 + rng() * 7;
-    const bx = POND_X + Math.cos(angle) * dist;
-    const bz = POND_Z + Math.sin(angle) * dist;
-    const by = getHeightAt(bx, bz);
-    const r = 0.7 + rng() * 0.5;
-    const geo = new THREE.SphereGeometry(r, 7, 5);
-    const mesh = new THREE.Mesh(geo, bushMat);
-    mesh.scale.set(1.6, 0.85, 1.6);
-    mesh.position.set(bx, by + r * 0.3, bz);
-    scene.add(mesh);
+  // Approach side walls — connect bridge railings into each road zone
+  const wallGeo = new THREE.BoxGeometry(0.45, RAIL_H, 7);
+  for (const wx of [-5.5, 13.5] as const) {
+    // North approach wall: z=-237 going north 7 units → center at -233.5
+    const wallN = new THREE.Mesh(wallGeo, concreteMat);
+    wallN.position.set(wx, RAIL_CY, -237 + 3.5);
+    scene.add(wallN);
+    // South approach wall: z=-285 going south 7 units → center at -288.5
+    const wallS = new THREE.Mesh(wallGeo, concreteMat);
+    wallS.position.set(wx, RAIL_CY, -285 - 3.5);
+    scene.add(wallS);
   }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-export interface WaterwaysResult {
-  pondObstacle: CircleObstacle;
-}
-
-export function createWaterways(
-  scene: THREE.Scene,
-  getHeightAt: (x: number, z: number) => number,
-): WaterwaysResult {
+export function createWaterways(scene: THREE.Scene): void {
   const waterMat = new THREE.MeshLambertMaterial({
     color: 0x1a4a7a,
     transparent: true,
@@ -245,32 +219,18 @@ export function createWaterways(
     depthWrite: false,
   });
 
-  // Main E-W crossing — 28-unit wide ribbon at RIVER_Y
   buildRiverRibbon(MAIN_SPINE, RIVER_Y, 28, waterMat, scene);
-
-  // West and east arms winding south along city flanks — narrower, shallower
   buildRiverRibbon(WEST_ARM, ARM_Y, 14, armMat, scene);
   buildRiverRibbon(EAST_ARM, ARM_Y, 14, armMat, scene);
-
-  // Freeway bridge where the road crosses at z≈-265
   buildBridge(scene);
-
-  const pondObstacle = buildPond(scene, getHeightAt);
-  buildPondSurrounds(scene, getHeightAt);
-
-  return { pondObstacle };
 }
 
-// Export pond position so trees.ts can exclude the pond area from flank placement
-export const POND_EXCLUSION: CircleObstacle = { x: POND_X, z: POND_Z, radius: 22 };
-
-// Exclusion circles along the river arms to keep flank trees out of the water.
-// Spaced every ~22 u along each arm spine (radius 15 = outer half-width 13 + buffer).
+// Exclusion circles along the river spines to keep flank trees out of the water.
 function spineExclusions(spine: [number, number][], radius: number): CircleObstacle[] {
   const out: CircleObstacle[] = [];
   for (let i = 0; i < spine.length - 1; i++) {
-    const [ax, az] = spine[i]!;
-    const [bx, bz] = spine[i + 1]!;
+    const [ax, az] = spine[i];
+    const [bx, bz] = spine[i + 1];
     const len = Math.sqrt((bx - ax) ** 2 + (bz - az) ** 2);
     const steps = Math.max(2, Math.ceil(len / 22));
     for (let s = 0; s <= steps; s++) {
@@ -283,5 +243,5 @@ function spineExclusions(spine: [number, number][], radius: number): CircleObsta
 
 export const RIVER_WEST_EXCLUSIONS: CircleObstacle[] = spineExclusions(WEST_ARM, 15);
 export const RIVER_EAST_EXCLUSIONS: CircleObstacle[] = spineExclusions(EAST_ARM, 15);
-// Main river body exclusions: keeps flank trees out of the E-W crossing channel.
+// Main river body exclusions — keeps flank trees out of the E-W crossing channel.
 export const RIVER_MAIN_EXCLUSIONS: CircleObstacle[] = spineExclusions(MAIN_SPINE, 17);

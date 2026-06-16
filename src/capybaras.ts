@@ -138,36 +138,40 @@ function buildOne(
     root.add(leg);
   }
 
-  // ── Head group (pivots at front of body, bobs while grazing) ──────────────
-  // headGroup is at body front tip height (bodyCenterY) so the head back face
-  // touches the body front tip with no gap.
+  // ── Head group (pivots near body shoulder, bobs while grazing) ───────────
+  // Compute body surface z at the head's y level (ellipsoid equation) so the
+  // head overlaps the body rather than floating in front of it.
+  const headYn = Math.min(1, (2 * hrY) / bH); // normalized y on body ellipsoid
+  const bodyZAtHead = (bL / 2) * Math.sqrt(Math.max(0, 1 - headYn * headYn));
+  // headGroup sits at body surface; head center is hrZ*0.6 further forward so
+  // the back of the head overlaps slightly with the body front.
   const headGroup = new THREE.Group();
-  headGroup.position.set(0, bodyCenterY, bL / 2);
+  headGroup.position.set(0, bodyCenterY, bodyZAtHead + hrZ * 0.6);
   root.add(headGroup);
 
   const head = new THREE.Mesh(_headGeo, _brown);
   head.scale.set(hrX, hrY, hrZ);
-  head.position.set(0, hrY, hrZ);
+  head.position.set(0, hrY, 0); // head centered over headGroup z (no forward offset)
   headGroup.add(head);
 
-  // Ears sit on the head sphere crown at the ear's (x, z) position.
-  // The sphere surface at x_n=0.72, z_n=0.55 has y_n=sqrt(1-0.72²-0.55²)≈0.42,
-  // so ear bottom = head_center_y + hrY*0.42 (sphere surface) = hrY*(1+0.42).
-  const earSurfY = hrY * (1 + Math.sqrt(Math.max(0, 1 - 0.72 * 0.72 - 0.55 * 0.55)));
+  // Ear/eye/nose positions are relative to head center (0, hrY, 0) in headGroup space.
+  // Ear sits on the sphere crown: xn=0.72, zn=-0.45 (slightly behind head center).
+  const earZn = 0.45;
+  const earSurfY = hrY * (1 + Math.sqrt(Math.max(0, 1 - 0.72 * 0.72 - earZn * earZn)));
   for (const sx of [-1, 1] as const) {
     const ear = new THREE.Mesh(d.earGeo, _brown);
-    ear.position.set(sx * hrX * 0.72, earSurfY + eH / 2, hrZ * 0.55);
+    ear.position.set(sx * hrX * 0.72, earSurfY + eH / 2, -hrZ * earZn);
     headGroup.add(ear);
   }
 
   for (const sx of [-1, 1] as const) {
     const eye = new THREE.Mesh(d.eyeGeo, _black);
-    eye.position.set(sx * hrX * 0.5, hrY * 2 - eyeS * 0.3, hrZ * 1.35);
+    eye.position.set(sx * hrX * 0.5, hrY * 2 - eyeS * 0.3, hrZ * 0.35);
     headGroup.add(eye);
   }
 
   const nose = new THREE.Mesh(d.noseGeo, _black);
-  nose.position.set(0, hrY * 0.55, hrZ * 2);
+  nose.position.set(0, hrY * 0.55, hrZ);
   headGroup.add(nose);
 
   return {
@@ -251,7 +255,7 @@ export function createCapybaras(
       globalT += dt;
 
       for (let i = 0; i < capybaras.length; i++) {
-        const cap = capybaras[i]!;
+        const cap = capybaras[i];
 
         // ── Wander ─────────────────────────────────────────────────────────
         cap.wanderTimer -= dt;
@@ -278,8 +282,8 @@ export function createCapybaras(
         cap.root.position.y = cap.getHeightAt(cap.posX, cap.posZ);
         cap.root.rotation.y = -cap.wanderAngle;
 
-        capybaraPositions[i]!.x = cap.posX;
-        capybaraPositions[i]!.z = cap.posZ;
+        capybaraPositions[i].x = cap.posX;
+        capybaraPositions[i].z = cap.posZ;
 
         // ── Head bob ──────────────────────────────────────────────────────
         cap.headGroup.rotation.x = (1 - Math.cos(globalT * cap.bobSpeed + cap.bobPhase)) * 0.175;

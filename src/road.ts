@@ -28,13 +28,12 @@ const SPINE: ReadonlyArray<readonly [number, number]> = [
   [-18, -158],
   [-5, -188],
   [4, -216], // aligned with city road, smooth approach
-  [4, -235], // south end — gravel ends before river carve zone; asphalt continues south
+  [4, -237], // south end — gravel meets north edge of bridge
 ] as const;
 
-// City extension: asphalt two-lane road, meets gravel end and continues over the bridge.
+// City extension: asphalt two-lane road, starts at bridge south edge.
 const CITY_SPINE: ReadonlyArray<readonly [number, number]> = [
-  [4, -235], // joins gravel road end — before river carve starts
-  [4, -265],
+  [4, -285], // joins bridge south end — after river carve zone clears
   [4, -290], // near gas station / grocery cross-street
   [4, -340], // apartment zone
   [4, -395],
@@ -64,17 +63,16 @@ export function getRoadObstacles(): CircleObstacle[] {
 // Water surface height — must match waterways.ts RIVER_Y.
 const RIVER_FLOOR = -3.0;
 
-// Returns a height function that keeps the road and player above the river channel.
-// In the bridge zone (z: -235→-282 at x≈4) it restores the carved terrain depth so
-// the asphalt sits at flat grade over the full span — no step-down, no arch.
-// Outside the bridge zone it clamps to RIVER_FLOOR so the player can wade without
+// Returns a height function that keeps the player above the river channel.
+// In the bridge zone (z: -237→-285 at x≈4) it restores the carved terrain depth so
+// the bridge sits at flat grade over the full span.
+// Outside the bridge zone it clamps to RIVER_FLOOR so the player wades without
 // sinking below the water surface.
-// Exported so main.ts can use it for the player's height function too.
 export function makeBridgedHeight(
   getHeightAt: (x: number, z: number) => number,
 ): (x: number, z: number) => number {
-  const Z1 = -235; // north edge — starts before carve zone begins
-  const Z2 = -282; // south edge of carved channel
+  const Z1 = -237; // north edge — bridge starts at gravel road end
+  const Z2 = -285; // south edge — bridge ends at city road start
   const X_CENTER = 4;
   const X_HALF = 14;
   return (x: number, z: number): number => {

@@ -7,7 +7,7 @@ export function initAudio(): void {
   audio.volume = 0.9;
 
   let started = false;
-  const start = () => {
+  const start = (): void => {
     if (started) return;
     started = true;
     audio.play().catch(() => {

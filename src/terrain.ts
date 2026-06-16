@@ -60,8 +60,8 @@ const RIVER_EAST_SPINE: readonly [number, number][] = [
 function distToSpine(spine: readonly [number, number][], x: number, z: number): number {
   let best = Infinity;
   for (let i = 0; i < spine.length - 1; i++) {
-    const [ax, az] = spine[i]!;
-    const [bx, bz] = spine[i + 1]!;
+    const [ax, az] = spine[i];
+    const [bx, bz] = spine[i + 1];
     const dx = bx - ax,
       dz = bz - az;
     const len2 = dx * dx + dz * dz;

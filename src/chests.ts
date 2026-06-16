@@ -312,7 +312,7 @@ export function createChests(
     });
     if (tooClose) continue;
 
-    chests.push(buildChest(scene, getHeightAt, x, z, rng() * Math.PI * 2, lootTypes[placed]!));
+    chests.push(buildChest(scene, getHeightAt, x, z, rng() * Math.PI * 2, lootTypes[placed]));
     obstacles.push({ x, z, radius: HITBOX_R });
     placed++;
   }
@@ -392,6 +392,11 @@ export function createChests(
             }
             break;
           }
+
+          case 'closed':
+          case 'looted':
+            // no per-frame animation in these states
+            break;
         }
       }
     },

@@ -24,20 +24,21 @@ export function createInventory(
   armGroup.visible = false;
   camera.add(armGroup);
 
+  const EQUIPPABLE: ReadonlySet<LootType> = new Set(['sword', 'shield']);
   const items: LootType[] = [];
-  let nextIdx = 0; // index of the item to show on next "show" press
+  let nextIdx = 0; // index into equippable items
   let showing = false;
   let wasDown = false;
 
   function showItem(type: LootType): void {
-    while (armGroup.children.length > 0) armGroup.remove(armGroup.children[0]!);
+    while (armGroup.children.length > 0) armGroup.remove(armGroup.children[0]);
     armGroup.add(buildLoot(type));
     armGroup.visible = true;
   }
 
   return {
     pickupItem(type: LootType): void {
-      items.push(type);
+      if (EQUIPPABLE.has(type)) items.push(type);
     },
 
     update(): void {
@@ -53,7 +54,7 @@ export function createInventory(
         armGroup.visible = false;
         showing = false;
       } else if (items.length > 0) {
-        showItem(items[nextIdx % items.length]!);
+        showItem(items[nextIdx % items.length]);
         nextIdx = (nextIdx + 1) % items.length;
         showing = true;
       }

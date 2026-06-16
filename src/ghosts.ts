@@ -112,7 +112,7 @@ export function createGhosts(
     let dstIdx = srcIdx;
     while (dstIdx === srcIdx) dstIdx = Math.floor(rng() * BUILDINGS.length);
 
-    const src = BUILDINGS[srcIdx]!;
+    const src = BUILDINGS[srcIdx];
     ghosts.push({
       group,
       shadow,
@@ -134,8 +134,8 @@ export function createGhosts(
       if (g.state === 'dormant') {
         g.waitTimer -= dt;
         if (g.waitTimer <= 0) {
-          const src = BUILDINGS[g.srcIdx]!;
-          const dst = BUILDINGS[g.dstIdx]!;
+          const src = BUILDINGS[g.srcIdx];
+          const dst = BUILDINGS[g.dstIdx];
           g.srcY = getHeightAt(src[0], src[1]) + FLOAT_HEIGHT;
           g.dstY = getHeightAt(dst[0], dst[1]) + FLOAT_HEIGHT;
           g.group.position.set(src[0], g.srcY, src[1]);
@@ -145,7 +145,7 @@ export function createGhosts(
           g.state = 'floating';
         }
       } else {
-        const dst = BUILDINGS[g.dstIdx]!;
+        const dst = BUILDINGS[g.dstIdx];
         const cx = g.group.position.x;
         const cz = g.group.position.z;
         const rdx = dst[0] - cx;
@@ -165,7 +165,7 @@ export function createGhosts(
           g.state = 'dormant';
         } else {
           // Interpolate base height between src and dst ground levels
-          const src = BUILDINGS[g.srcIdx]!;
+          const src = BUILDINGS[g.srcIdx];
           const totalDx = dst[0] - src[0];
           const totalDz = dst[1] - src[1];
           const totalDist = Math.sqrt(totalDx * totalDx + totalDz * totalDz);

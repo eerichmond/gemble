@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import type * as THREE from 'three';
 
 export function createCompass(camera: THREE.PerspectiveCamera): { update: () => void } {
   const SIZE = 80;

@@ -31,9 +31,18 @@ export default [
       // for browser globals (window, document) and test globals (describe, it, expect).
       'no-undef': 'off',
       'prettier/prettier': 'error',
+      // ── Correctness ──────────────────────────────────────────────────────────
+      'eqeqeq': ['error', 'always'],
+      'prefer-const': 'error',
+      'no-console': 'error',
+      // ── TypeScript strictness ─────────────────────────────────────────────────
       '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/explicit-function-return-type': ['warn', { allowExpressions: true }],
-      'no-console': 'warn',
+      '@typescript-eslint/explicit-function-return-type': ['error', { allowExpressions: true }],
+      '@typescript-eslint/no-non-null-assertion': 'warn',
+      '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
+      '@typescript-eslint/switch-exhaustiveness-check': 'error',
+      '@typescript-eslint/prefer-nullish-coalescing': ['error', { ignorePrimitives: { boolean: true } }],
+      '@typescript-eslint/prefer-optional-chain': 'error',
     },
   },
 ];

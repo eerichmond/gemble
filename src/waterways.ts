@@ -13,30 +13,45 @@ const POND_RADIUS = 11;
 // Water surface sits inside the carved channel (terrain.ts carves 6 u deep; flat
 // terrain≈0 → channel floor≈-6; RIVER_Y=-3 gives ~3 u visible water depth).
 const RIVER_Y = -3.0;
-const ARM_Y   = -2.5; // arms are shallower
+const ARM_Y = -2.5; // arms are shallower
 
 // ── River spine waypoints — must match terrain.ts RIVER_*_SPINE exactly ───────
 const MAIN_SPINE: [number, number][] = [
-  [-250, -280], [-160, -270], [-80, -264], [-30, -262],
-  [4, -261], [35, -261], [90, -267], [165, -275], [250, -283],
+  [-250, -280],
+  [-160, -270],
+  [-80, -264],
+  [-30, -262],
+  [4, -261],
+  [35, -261],
+  [90, -267],
+  [165, -275],
+  [250, -283],
 ];
 const WEST_ARM: [number, number][] = [
-  [-80, -264], [-90, -305], [-102, -352], [-114, -400], [-118, -450],
+  [-80, -264],
+  [-90, -305],
+  [-102, -352],
+  [-114, -400],
+  [-118, -450],
 ];
 const EAST_ARM: [number, number][] = [
-  [90, -267], [100, -312], [110, -358], [120, -408], [130, -450],
+  [90, -267],
+  [100, -312],
+  [110, -358],
+  [120, -408],
+  [130, -450],
 ];
 
 // Bridge geometry constants — kept in sync with road.ts makeBridgedHeight
-const BRIDGE_Z_CENTER = -265; // midpoint of z=-248..z=-282
-const BRIDGE_Z_HALF   = 17;   // half-length of bridge span
-const BANK_Y          = 0.8;  // approximate flat terrain y near crossing
-const ARCH_PEAK       = 0.8;  // peak arch height from road.ts
+const BRIDGE_Z_CENTER = -259; // midpoint of z=-235..z=-282
+const BRIDGE_Z_HALF = 24; // half-length of bridge span
+const BANK_Y = 0; // road sits at y≈0 (flat, no arch)
+const ARCH_PEAK = 0; // no arch — flat bridge
 
 function makeLcg(seed: number): () => number {
   let s = seed >>> 0;
   return () => {
-    s = Math.imul(s, 1664525) + 1013904223 >>> 0;
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
     return s / 0x100000000;
   };
 }
@@ -52,7 +67,9 @@ function buildRiverRibbon(
   mat: THREE.Material,
   scene: THREE.Scene,
 ): void {
-  const pos: number[] = [], uvs: number[] = [], idx: number[] = [];
+  const pos: number[] = [],
+    uvs: number[] = [],
+    idx: number[] = [];
   let vAcc = 0;
 
   for (let i = 0; i < pts.length; i++) {
@@ -63,12 +80,25 @@ function buildRiverRibbon(
     }
 
     // Smooth tangent from neighbours
-    let fx = 0, fz = 0;
-    if (i < pts.length - 1) { const q = pts[i + 1]!; fx += q[0] - cx; fz += q[1] - cz; }
-    if (i > 0)               { const q = pts[i - 1]!; fx += cx - q[0]; fz += cz - q[1]; }
+    let fx = 0,
+      fz = 0;
+    if (i < pts.length - 1) {
+      const q = pts[i + 1]!;
+      fx += q[0] - cx;
+      fz += q[1] - cz;
+    }
+    if (i > 0) {
+      const q = pts[i - 1]!;
+      fx += cx - q[0];
+      fz += cz - q[1];
+    }
     const len = Math.sqrt(fx * fx + fz * fz);
-    if (len > 0) { fx /= len; fz /= len; }
-    const rx = fz, rz = -fx; // right vector
+    if (len > 0) {
+      fx /= len;
+      fz /= len;
+    }
+    const rx = fz,
+      rz = -fx; // right vector
 
     for (const s of [0, 1] as const) {
       const side = (s - 0.5) * width;
@@ -95,7 +125,7 @@ function buildRiverRibbon(
 
 function buildBridge(scene: THREE.Scene): void {
   const concreteMat = new THREE.MeshLambertMaterial({ color: 0x8a8a80 });
-  const darkMat     = new THREE.MeshLambertMaterial({ color: 0x606058 });
+  const darkMat = new THREE.MeshLambertMaterial({ color: 0x606058 });
 
   // Bridge deck soffit — flat slab visible above the water from the river bank.
   // Slightly below the arched road surface so it reads as the deck underside.
@@ -104,14 +134,14 @@ function buildBridge(scene: THREE.Scene): void {
   deck.position.set(4, BANK_Y + ARCH_PEAK * 0.4, BRIDGE_Z_CENTER);
   scene.add(deck);
 
-  // 4 round piers: 2 pairs at z=-256 and z=-272, spread either side of road centre.
+  // 4 round piers: 2 pairs at z=-248 and z=-272, spread either side of road centre.
   // Height spans from 0.5 u below river surface to the deck underside.
   const PIER_BOTTOM = RIVER_Y - 0.5;
-  const PIER_TOP    = BANK_Y + 0.2;
-  const PIER_H      = PIER_TOP - PIER_BOTTOM;
-  const PIER_CY     = PIER_BOTTOM + PIER_H / 2;
+  const PIER_TOP = BANK_Y + 0.2;
+  const PIER_H = PIER_TOP - PIER_BOTTOM;
+  const PIER_CY = PIER_BOTTOM + PIER_H / 2;
   const pierGeo = new THREE.CylinderGeometry(0.7, 0.9, PIER_H, 8);
-  for (const bz of [-256, -272] as const) {
+  for (const bz of [-248, -272] as const) {
     for (const bx of [-2, 10] as const) {
       const pier = new THREE.Mesh(pierGeo, darkMat);
       pier.position.set(bx, PIER_CY, bz);
@@ -120,8 +150,8 @@ function buildBridge(scene: THREE.Scene): void {
   }
 
   // Concrete railings along each edge of the bridge deck.
-  const RAILING_H   = 0.9;
-  const RAILING_Y   = BANK_Y + ARCH_PEAK * 0.5 + RAILING_H / 2; // approximate mid-arch
+  const RAILING_H = 0.9;
+  const RAILING_Y = BANK_Y + ARCH_PEAK * 0.5 + RAILING_H / 2; // approximate mid-arch
   const railGeo = new THREE.BoxGeometry(0.45, RAILING_H, BRIDGE_Z_HALF * 2 + 2);
   for (const rx of [-5.5, 13.5] as const) {
     const rail = new THREE.Mesh(railGeo, concreteMat);
@@ -143,7 +173,7 @@ function buildPond(
   const mat = new THREE.MeshLambertMaterial({
     color: 0x2a5a8a,
     transparent: true,
-    opacity: 0.90,
+    opacity: 0.9,
     depthWrite: false,
   });
   const mesh = new THREE.Mesh(geo, mat);
@@ -166,26 +196,26 @@ function buildPondSurrounds(
 
   for (let i = 0; i < 10; i++) {
     const angle = rng() * Math.PI * 2;
-    const dist  = 12 + rng() * 5;
-    const rx    = POND_X + Math.cos(angle) * dist;
-    const rz    = POND_Z + Math.sin(angle) * dist;
-    const ry    = getHeightAt(rx, rz);
-    const r     = 0.4 + rng() * 0.5;
-    const geo   = new THREE.SphereGeometry(r, 7, 5);
-    const mesh  = new THREE.Mesh(geo, rockMat);
+    const dist = 12 + rng() * 5;
+    const rx = POND_X + Math.cos(angle) * dist;
+    const rz = POND_Z + Math.sin(angle) * dist;
+    const ry = getHeightAt(rx, rz);
+    const r = 0.4 + rng() * 0.5;
+    const geo = new THREE.SphereGeometry(r, 7, 5);
+    const mesh = new THREE.Mesh(geo, rockMat);
     mesh.position.set(rx, ry - r * 0.3, rz);
     scene.add(mesh);
   }
 
   for (let i = 0; i < 7; i++) {
     const angle = rng() * Math.PI * 2;
-    const dist  = 15 + rng() * 7;
-    const bx    = POND_X + Math.cos(angle) * dist;
-    const bz    = POND_Z + Math.sin(angle) * dist;
-    const by    = getHeightAt(bx, bz);
-    const r     = 0.7 + rng() * 0.5;
-    const geo   = new THREE.SphereGeometry(r, 7, 5);
-    const mesh  = new THREE.Mesh(geo, bushMat);
+    const dist = 15 + rng() * 7;
+    const bx = POND_X + Math.cos(angle) * dist;
+    const bz = POND_Z + Math.sin(angle) * dist;
+    const by = getHeightAt(bx, bz);
+    const r = 0.7 + rng() * 0.5;
+    const geo = new THREE.SphereGeometry(r, 7, 5);
+    const mesh = new THREE.Mesh(geo, bushMat);
     mesh.scale.set(1.6, 0.85, 1.6);
     mesh.position.set(bx, by + r * 0.3, bz);
     scene.add(mesh);
@@ -236,10 +266,7 @@ export const POND_EXCLUSION: CircleObstacle = { x: POND_X, z: POND_Z, radius: 22
 
 // Exclusion circles along the river arms to keep flank trees out of the water.
 // Spaced every ~22 u along each arm spine (radius 15 = outer half-width 13 + buffer).
-function spineExclusions(
-  spine: [number, number][],
-  radius: number,
-): CircleObstacle[] {
+function spineExclusions(spine: [number, number][], radius: number): CircleObstacle[] {
   const out: CircleObstacle[] = [];
   for (let i = 0; i < spine.length - 1; i++) {
     const [ax, az] = spine[i]!;
@@ -256,3 +283,5 @@ function spineExclusions(
 
 export const RIVER_WEST_EXCLUSIONS: CircleObstacle[] = spineExclusions(WEST_ARM, 15);
 export const RIVER_EAST_EXCLUSIONS: CircleObstacle[] = spineExclusions(EAST_ARM, 15);
+// Main river body exclusions: keeps flank trees out of the E-W crossing channel.
+export const RIVER_MAIN_EXCLUSIONS: CircleObstacle[] = spineExclusions(MAIN_SPINE, 17);

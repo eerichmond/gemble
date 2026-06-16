@@ -16,7 +16,13 @@ import { createChests } from './chests';
 import { createBirds } from './birds';
 import { createCapybaras } from './capybaras';
 import { createGhosts } from './ghosts';
-import { createWaterways, POND_EXCLUSION, RIVER_WEST_EXCLUSIONS, RIVER_EAST_EXCLUSIONS } from './waterways';
+import {
+  createWaterways,
+  POND_EXCLUSION,
+  RIVER_WEST_EXCLUSIONS,
+  RIVER_EAST_EXCLUSIONS,
+  RIVER_MAIN_EXCLUSIONS,
+} from './waterways';
 import { createFlankTrees } from './trees';
 import { createInventory } from './inventory';
 import { createMinimap } from './minimap';
@@ -48,12 +54,13 @@ const { update: updateChests, obstacles: chestObstacles } = createChests(
   scene,
   getHeightAt,
   allCircleZones,
-  (type) => inventory.pickupItem(type),
+  type => inventory.pickupItem(type),
 );
 
 const { pondObstacle } = createWaterways(scene, getHeightAt);
 const flankTreePositions = createFlankTrees(scene, getHeightAt, [
   POND_EXCLUSION,
+  ...RIVER_MAIN_EXCLUSIONS,
   ...RIVER_WEST_EXCLUSIONS,
   ...RIVER_EAST_EXCLUSIONS,
 ]);
@@ -68,10 +75,17 @@ const { update: updatePlayer } = createPlayer(
   collisionBoxes,
 );
 const { update: updateBirds } = createBirds(scene, getHeightAt, allCircleZones);
-const { update: updateCapybaras, capybaraPositions } = createCapybaras(scene, getHeightAt, allCircleZones);
+const { update: updateCapybaras, capybaraPositions } = createCapybaras(
+  scene,
+  getHeightAt,
+  allCircleZones,
+);
 const { update: updateGhosts } = createGhosts(scene, getHeightAt);
 const { update: updateForestMonsters, positions: monsterPositions } = createMonsters(
-  scene, getHeightAt, allCircleZones, collisionBoxes,
+  scene,
+  getHeightAt,
+  allCircleZones,
+  collisionBoxes,
 );
 
 const compass = createCompass(camera);

@@ -194,14 +194,10 @@ export function createFlankTrees(
   const westExclude: CircleObstacle[] = [...extraExclude];
   const eastExclude: CircleObstacle[] = [];
 
-  placeFlankPines(scene, getHeightAt, rng, dummy, treePositions,
-    -220, -90, westExclude);
-  placeFlankPines(scene, getHeightAt, rng, dummy, treePositions,
-    90, 220, eastExclude);
-  placeFlankDeciduous(scene, getHeightAt, rng, dummy, treePositions,
-    -220, -90, westExclude);
-  placeFlankDeciduous(scene, getHeightAt, rng, dummy, treePositions,
-    90, 220, eastExclude);
+  placeFlankPines(scene, getHeightAt, rng, dummy, treePositions, -220, -90, westExclude);
+  placeFlankPines(scene, getHeightAt, rng, dummy, treePositions, 90, 220, eastExclude);
+  placeFlankDeciduous(scene, getHeightAt, rng, dummy, treePositions, -220, -90, westExclude);
+  placeFlankDeciduous(scene, getHeightAt, rng, dummy, treePositions, 90, 220, eastExclude);
 
   return treePositions;
 }
@@ -212,7 +208,8 @@ function placeFlankPines(
   rng: () => number,
   dummy: THREE.Object3D,
   out: TreePosition[],
-  xMin: number, xMax: number,
+  xMin: number,
+  xMax: number,
   extraExclude: CircleObstacle[],
 ): void {
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x3d2005 });
@@ -243,10 +240,18 @@ function placeFlankPines(
 
     dummy.rotation.set(0, yaw, 0);
     dummy.scale.setScalar(scale);
-    dummy.position.set(x, groundY + scale, z);      dummy.updateMatrix(); trunk.setMatrixAt(i, dummy.matrix);
-    dummy.position.set(x, groundY + 4 * scale, z);  dummy.updateMatrix(); c0.setMatrixAt(i, dummy.matrix);
-    dummy.position.set(x, groundY + 5.5 * scale, z);dummy.updateMatrix(); c1.setMatrixAt(i, dummy.matrix);
-    dummy.position.set(x, groundY + 7 * scale, z);  dummy.updateMatrix(); c2.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(x, groundY + scale, z);
+    dummy.updateMatrix();
+    trunk.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(x, groundY + 4 * scale, z);
+    dummy.updateMatrix();
+    c0.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(x, groundY + 5.5 * scale, z);
+    dummy.updateMatrix();
+    c1.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(x, groundY + 7 * scale, z);
+    dummy.updateMatrix();
+    c2.setMatrixAt(i, dummy.matrix);
   }
   [trunk, c0, c1, c2].forEach(m => (m.instanceMatrix.needsUpdate = true));
 }
@@ -257,7 +262,8 @@ function placeFlankDeciduous(
   rng: () => number,
   dummy: THREE.Object3D,
   out: TreePosition[],
-  xMin: number, xMax: number,
+  xMin: number,
+  xMax: number,
   extraExclude: CircleObstacle[],
 ): void {
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x5c3a10 });
@@ -269,7 +275,11 @@ function placeFlankDeciduous(
 
   const perColor = Math.ceil(FLANK_DECID / DECIDUOUS_CANOPY_COLORS.length);
   const canopyMeshes = DECIDUOUS_CANOPY_COLORS.map(color => {
-    const mesh = new THREE.InstancedMesh(canopyGeo, new THREE.MeshLambertMaterial({ color }), perColor);
+    const mesh = new THREE.InstancedMesh(
+      canopyGeo,
+      new THREE.MeshLambertMaterial({ color }),
+      perColor,
+    );
     scene.add(mesh);
     return mesh;
   });
@@ -301,11 +311,14 @@ function placeFlankDeciduous(
 
 function randomRectPos(
   rng: () => number,
-  xMin: number, xMax: number,
-  zMin: number, zMax: number,
+  xMin: number,
+  xMax: number,
+  zMin: number,
+  zMax: number,
   excludeZones: CircleObstacle[] = [],
 ): { x: number; z: number } {
-  let x = 0, z = 0;
+  let x = 0,
+    z = 0;
   let attempts = 0;
   do {
     x = xMin + rng() * (xMax - xMin);

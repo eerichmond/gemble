@@ -26,10 +26,7 @@ type HeightFn = (x: number, z: number) => number;
 // plane. Each building/prop samples getHeightAt at its center for Y.
 // ---------------------------------------------------------------------------
 
-export function createCity(
-  scene: THREE.Scene,
-  getHeightAt: HeightFn,
-): CityResult {
+export function createCity(scene: THREE.Scene, getHeightAt: HeightFn): CityResult {
   const collisionBoxes: BuildingBox[] = [
     buildGasStation(scene, getHeightAt),
     buildGroceryStore(scene, getHeightAt),

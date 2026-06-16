@@ -25,57 +25,76 @@ interface CapybaraEntity {
 function lcg(seed: number) {
   let s = seed >>> 0;
   return (): number => {
-    s = Math.imul(s, 1664525) + 1013904223 >>> 0;
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
     return s / 0x100000000;
   };
 }
 
 // ── Shared materials & geometry ───────────────────────────────────────────────
-const _brown   = new THREE.MeshLambertMaterial({ color: 0x7a4a1e });
-const _black   = new THREE.MeshLambertMaterial({ color: 0x111111 });
-const _bodyGeo = new THREE.SphereGeometry(1, 12, 8);  // scaled to oval per instance
-const _headGeo = new THREE.SphereGeometry(1, 8, 6);   // scaled to oval per instance
+const _brown = new THREE.MeshLambertMaterial({ color: 0x7a4a1e });
+const _black = new THREE.MeshLambertMaterial({ color: 0x111111 });
+const _bodyGeo = new THREE.SphereGeometry(1, 12, 8); // scaled to oval per instance
+const _headGeo = new THREE.SphereGeometry(1, 8, 6); // scaled to oval per instance
 
 // ── Size definitions ──────────────────────────────────────────────────────────
 interface CapDef {
-  bW: number; bH: number; bL: number;
-  hrX: number; hrY: number; hrZ: number;
-  lW: number; lH: number;
-  eH: number; eyeS: number;
-  legGeo:  THREE.BoxGeometry;
-  earGeo:  THREE.BoxGeometry;
-  eyeGeo:  THREE.BoxGeometry;
+  bW: number;
+  bH: number;
+  bL: number;
+  hrX: number;
+  hrY: number;
+  hrZ: number;
+  lW: number;
+  lH: number;
+  eH: number;
+  eyeS: number;
+  legGeo: THREE.BoxGeometry;
+  earGeo: THREE.BoxGeometry;
+  eyeGeo: THREE.BoxGeometry;
   noseGeo: THREE.BoxGeometry;
 }
 
 // Large: ~1.30×0.70×2.30 oval body (30% bigger than original)
 const DEF_L: CapDef = {
-  bW: 1.30, bH: 0.70, bL: 2.30,
-  hrX: 0.39, hrY: 0.33, hrZ: 0.52,
-  lW: 0.12, lH: 0.50,
-  eH: 0.20, eyeS: 0.11,
-  legGeo:  new THREE.BoxGeometry(0.12, 0.50, 0.12),
-  earGeo:  new THREE.BoxGeometry(0.16, 0.20, 0.09),
-  eyeGeo:  new THREE.BoxGeometry(0.11, 0.11, 0.02),
+  bW: 1.3,
+  bH: 0.7,
+  bL: 2.3,
+  hrX: 0.39,
+  hrY: 0.33,
+  hrZ: 0.52,
+  lW: 0.12,
+  lH: 0.5,
+  eH: 0.2,
+  eyeS: 0.11,
+  legGeo: new THREE.BoxGeometry(0.12, 0.5, 0.12),
+  earGeo: new THREE.BoxGeometry(0.16, 0.2, 0.09),
+  eyeGeo: new THREE.BoxGeometry(0.11, 0.11, 0.02),
   noseGeo: new THREE.BoxGeometry(0.18, 0.11, 0.07),
 };
 
 // Small: ~0.85×0.48×1.55 oval body
 const DEF_S: CapDef = {
-  bW: 0.85, bH: 0.48, bL: 1.55,
-  hrX: 0.27, hrY: 0.23, hrZ: 0.36,
-  lW: 0.09, lH: 0.34,
-  eH: 0.14, eyeS: 0.08,
-  legGeo:  new THREE.BoxGeometry(0.09, 0.34, 0.09),
-  earGeo:  new THREE.BoxGeometry(0.12, 0.14, 0.07),
-  eyeGeo:  new THREE.BoxGeometry(0.08, 0.08, 0.02),
+  bW: 0.85,
+  bH: 0.48,
+  bL: 1.55,
+  hrX: 0.27,
+  hrY: 0.23,
+  hrZ: 0.36,
+  lW: 0.09,
+  lH: 0.34,
+  eH: 0.14,
+  eyeS: 0.08,
+  legGeo: new THREE.BoxGeometry(0.09, 0.34, 0.09),
+  earGeo: new THREE.BoxGeometry(0.12, 0.14, 0.07),
+  eyeGeo: new THREE.BoxGeometry(0.08, 0.08, 0.02),
   noseGeo: new THREE.BoxGeometry(0.13, 0.08, 0.07),
 };
 
 function buildOne(
   scene: THREE.Scene,
   getHeightAt: (x: number, z: number) => number,
-  x: number, z: number,
+  x: number,
+  z: number,
   rotY: number,
   large: boolean,
   rng: () => number,
@@ -98,13 +117,13 @@ function buildOne(
   // ── Legs — four black sticks reaching up to the oval body bottom ───────────
   // Position each leg under the oval at 30% of the X/Z semi-axes so it lands
   // within the ellipsoid's footprint and reaches the curved underside.
-  const legOffX = bW * 0.30;
-  const legOffZ = bL * 0.30;
+  const legOffX = bW * 0.3;
+  const legOffZ = bL * 0.3;
   const legCorners: [number, number][] = [
-    [-legOffX,  legOffZ],
-    [ legOffX,  legOffZ],
+    [-legOffX, legOffZ],
+    [legOffX, legOffZ],
     [-legOffX, -legOffZ],
-    [ legOffX, -legOffZ],
+    [legOffX, -legOffZ],
   ];
   for (const [lx, lz] of legCorners) {
     const xn = lx / (bW / 2);
@@ -143,7 +162,7 @@ function buildOne(
 
   for (const sx of [-1, 1] as const) {
     const eye = new THREE.Mesh(d.eyeGeo, _black);
-    eye.position.set(sx * hrX * 0.50, hrY * 2 - eyeS * 0.3, hrZ * 1.35);
+    eye.position.set(sx * hrX * 0.5, hrY * 2 - eyeS * 0.3, hrZ * 1.35);
     headGroup.add(eye);
   }
 
@@ -152,10 +171,14 @@ function buildOne(
   headGroup.add(nose);
 
   return {
-    root, headGroup,
-    bobSpeed: 0, bobPhase: 0,
-    posX: x, posZ: z,
-    startX: x, startZ: z,
+    root,
+    headGroup,
+    bobSpeed: 0,
+    bobPhase: 0,
+    posX: x,
+    posZ: z,
+    startX: x,
+    startZ: z,
     wanderAngle: rng() * Math.PI * 2,
     wanderTimer: 1 + rng() * 4,
     wanderSpeed: 0.4 + rng() * 0.4,
@@ -180,19 +203,23 @@ export function createCapybaras(
     [true, true, false, false],
   ];
 
-  const SPAWN_X = -52, SPAWN_Z = 130;
+  const SPAWN_X = -52,
+    SPAWN_Z = 130;
 
   for (const members of groupDefs) {
-    let gx = 0, gz = 0;
+    let gx = 0,
+      gz = 0;
     for (let a = 0; a < 300; a++) {
       gx = (rng() * 2 - 1) * 150;
       gz = (rng() * 2 - 1) * 130;
-      const dsx = gx - SPAWN_X, dsz = gz - SPAWN_Z;
+      const dsx = gx - SPAWN_X,
+        dsz = gz - SPAWN_Z;
       if (dsx * dsx + dsz * dsz < 900) continue;
       if (gx > 5 && gx < 30) continue;
       if (gz < -258) continue;
       const blocked = excludeZones.some(e => {
-        const dx = gx - e.x, dz = gz - e.z;
+        const dx = gx - e.x,
+          dz = gz - e.z;
         return dx * dx + dz * dz < (e.radius + 8) * (e.radius + 8);
       });
       if (blocked) continue;
@@ -211,8 +238,10 @@ export function createCapybaras(
   }
 
   // Live position array — mutated each frame, read by minimap
-  const capybaraPositions: { x: number; z: number }[] =
-    capybaras.map(c => ({ x: c.posX, z: c.posZ }));
+  const capybaraPositions: { x: number; z: number }[] = capybaras.map(c => ({
+    x: c.posX,
+    z: c.posZ,
+  }));
 
   let globalT = 0;
 
@@ -233,13 +262,14 @@ export function createCapybaras(
 
         const nx = cap.posX + Math.sin(cap.wanderAngle) * cap.wanderSpeed * dt;
         const nz = cap.posZ + Math.cos(cap.wanderAngle) * cap.wanderSpeed * dt;
-        const dhx = nx - cap.startX, dhz = nz - cap.startZ;
+        const dhx = nx - cap.startX,
+          dhz = nz - cap.startZ;
         if (dhx * dhx + dhz * dhz < 15 * 15) {
           cap.posX = nx;
           cap.posZ = nz;
         } else {
-          cap.wanderAngle = Math.atan2(cap.startX - cap.posX, cap.startZ - cap.posZ)
-            + (Math.random() - 0.5) * 0.4;
+          cap.wanderAngle =
+            Math.atan2(cap.startX - cap.posX, cap.startZ - cap.posZ) + (Math.random() - 0.5) * 0.4;
           cap.wanderTimer = 1;
         }
 
@@ -252,8 +282,7 @@ export function createCapybaras(
         capybaraPositions[i]!.z = cap.posZ;
 
         // ── Head bob ──────────────────────────────────────────────────────
-        cap.headGroup.rotation.x =
-          (1 - Math.cos(globalT * cap.bobSpeed + cap.bobPhase)) * 0.175;
+        cap.headGroup.rotation.x = (1 - Math.cos(globalT * cap.bobSpeed + cap.bobPhase)) * 0.175;
       }
     },
   };

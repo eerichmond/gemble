@@ -30,16 +30,31 @@ export function computeTerrainHeight(x: number, z: number): number {
 // the city flanks following the tree lines. Must stay in sync with waterways.ts.
 
 const RIVER_MAIN_SPINE: readonly [number, number][] = [
-  [-250, -280], [-160, -270], [-80, -264], [-30, -262],
-  [4, -261], [35, -261], [90, -267], [165, -275], [250, -283],
+  [-250, -280],
+  [-160, -270],
+  [-80, -264],
+  [-30, -262],
+  [4, -261],
+  [35, -261],
+  [90, -267],
+  [165, -275],
+  [250, -283],
 ] as const;
 
 const RIVER_WEST_SPINE: readonly [number, number][] = [
-  [-80, -264], [-90, -305], [-102, -352], [-114, -400], [-118, -450],
+  [-80, -264],
+  [-90, -305],
+  [-102, -352],
+  [-114, -400],
+  [-118, -450],
 ] as const;
 
 const RIVER_EAST_SPINE: readonly [number, number][] = [
-  [90, -267], [100, -312], [110, -358], [120, -408], [130, -450],
+  [90, -267],
+  [100, -312],
+  [110, -358],
+  [120, -408],
+  [130, -450],
 ] as const;
 
 function distToSpine(spine: readonly [number, number][], x: number, z: number): number {
@@ -47,10 +62,12 @@ function distToSpine(spine: readonly [number, number][], x: number, z: number): 
   for (let i = 0; i < spine.length - 1; i++) {
     const [ax, az] = spine[i]!;
     const [bx, bz] = spine[i + 1]!;
-    const dx = bx - ax, dz = bz - az;
+    const dx = bx - ax,
+      dz = bz - az;
     const len2 = dx * dx + dz * dz;
     const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2)) : 0;
-    const ex = ax + t * dx - x, ez = az + t * dz - z;
+    const ex = ax + t * dx - x,
+      ez = az + t * dz - z;
     best = Math.min(best, ex * ex + ez * ez);
   }
   return Math.sqrt(best);

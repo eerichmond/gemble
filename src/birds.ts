@@ -5,14 +5,14 @@ import type { CircleObstacle } from './terrain';
 // Crows rest in groups of 3-4. Walk within 5 units of any bird and the whole
 // group startles together — caw sound, panic flap, then they all scatter.
 
-const STARTLE_RADIUS = 5;    // player must get within 5 units to trigger
-const LIFT_HEIGHT = 3;       // units raised during startled phase
-const LIFT_TIME = 0.5;       // seconds for startled → flying
-const FLY_SPEED = 10;        // horizontal units/s while flying
-const CLIMB_SPEED = 5;       // vertical units/s climbing
-const CLIMB_TIME = 2;        // seconds to keep climbing
-const DISPOSE_DIST = 150;    // units from spawn before mesh removal
-const GROUP_SPREAD = 5;      // max offset for each bird within its group
+const STARTLE_RADIUS = 5; // player must get within 5 units to trigger
+const LIFT_HEIGHT = 3; // units raised during startled phase
+const LIFT_TIME = 0.5; // seconds for startled → flying
+const FLY_SPEED = 10; // horizontal units/s while flying
+const CLIMB_SPEED = 5; // vertical units/s climbing
+const CLIMB_TIME = 2; // seconds to keep climbing
+const DISPOSE_DIST = 150; // units from spawn before mesh removal
+const GROUP_SPREAD = 5; // max offset for each bird within its group
 
 // Player spawn — keep birds away at start
 const SPAWN_X = -52;
@@ -48,8 +48,10 @@ function makeRng(seed: number): () => number {
 
 // Pure helper — exported for unit tests (no Three.js dependency)
 export function shouldStartle(
-  birdX: number, birdZ: number,
-  playerX: number, playerZ: number,
+  birdX: number,
+  birdZ: number,
+  playerX: number,
+  playerZ: number,
   radius: number,
 ): boolean {
   const dx = birdX - playerX;
@@ -123,14 +125,17 @@ export function createBirds(
   // Place each group: pick a clear center, then scatter members within GROUP_SPREAD
   GROUP_SIZES.forEach((count, groupId) => {
     // Pick group center — avoid spawn zone and all exclusion zones (mountains, trees)
-    let cx = 0, cz = 0;
+    let cx = 0,
+      cz = 0;
     for (let tries = 0; tries < 200; tries++) {
       cx = (rng() * 2 - 1) * 170;
       cz = (rng() * 2 - 1) * 170;
-      const dsx = cx - SPAWN_X, dsz = cz - SPAWN_Z;
+      const dsx = cx - SPAWN_X,
+        dsz = cz - SPAWN_Z;
       if (dsx * dsx + dsz * dsz < SPAWN_CLEAR * SPAWN_CLEAR) continue;
       const blocked = excludeZones.some(e => {
-        const dx = cx - e.x, dz = cz - e.z;
+        const dx = cx - e.x,
+          dz = cz - e.z;
         return dx * dx + dz * dz < (e.radius + 1) * (e.radius + 1);
       });
       if (!blocked) break;
@@ -147,10 +152,13 @@ export function createBirds(
       scene.add(group);
 
       birds.push({
-        group, wingL, wingR,
+        group,
+        wingL,
+        wingR,
         state: 'resting',
         groupId,
-        spawnX: x, spawnZ: z,
+        spawnX: x,
+        spawnZ: z,
         baseY: groundY,
         flightDir: { x: 0, z: 0 },
         stateTimer: 0,
@@ -185,13 +193,14 @@ export function createBirds(
         b.wingL.rotation.z = 0.15;
         b.wingR.rotation.z = -0.15;
 
-        if (shouldStartle(b.group.position.x, b.group.position.z, playerX, playerZ, STARTLE_RADIUS)) {
+        if (
+          shouldStartle(b.group.position.x, b.group.position.z, playerX, playerZ, STARTLE_RADIUS)
+        ) {
           if (!startledGroups.has(b.groupId)) {
             startledGroups.add(b.groupId);
             startleGroup(b.groupId);
           }
         }
-
       } else if (b.state === 'startled') {
         b.stateTimer += dt;
 
@@ -207,7 +216,6 @@ export function createBirds(
           b.state = 'flying';
           b.stateTimer = 0;
         }
-
       } else {
         // flying
         b.stateTimer += dt;

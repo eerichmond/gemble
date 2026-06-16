@@ -12,7 +12,7 @@ const LINE_HALF = 0.3; // half-width of edge line strips
 // City asphalt road is 1.5× the gravel width (two marked lanes).
 const CITY_ROAD_HALF = ROAD_HALF * 1.5; // 9 units
 
-// Road runs the full map length: crystals at north end (z≈+238), city at south end (z≈−248).
+// Road runs the full map length: crystals at north end (z≈+238), city at south end (z≈−235).
 // Passes ~15 units east of spawn so it's visible on the right when facing south.
 const SPINE: ReadonlyArray<readonly [number, number]> = [
   [20, 238], // north end — crystal formation blocks here
@@ -27,13 +27,13 @@ const SPINE: ReadonlyArray<readonly [number, number]> = [
   [-24, -125],
   [-18, -158],
   [-5, -188],
-  [4, -216],  // aligned with city road, smooth approach
-  [4, -248], // south end — gravel ends / asphalt begins
+  [4, -216], // aligned with city road, smooth approach
+  [4, -235], // south end — gravel ends before river carve zone; asphalt continues south
 ] as const;
 
-// City extension: asphalt two-lane road, same starting point as gravel end.
+// City extension: asphalt two-lane road, meets gravel end and continues over the bridge.
 const CITY_SPINE: ReadonlyArray<readonly [number, number]> = [
-  [4, -248], // joins gravel road end for seamless connection
+  [4, -235], // joins gravel road end — before river carve starts
   [4, -265],
   [4, -290], // near gas station / grocery cross-street
   [4, -340], // apartment zone
@@ -61,23 +61,33 @@ export function getRoadObstacles(): CircleObstacle[] {
   return obs;
 }
 
-// Returns a height function that bridges the road over the carved river channel.
-// In the bridge zone (z: -248→-282 at x≈4) it adds the carved depth back plus a
-// parabolic arch — the road surface gently rises 0.8 u at mid-span (~4.7% grade).
+// Water surface height — must match waterways.ts RIVER_Y.
+const RIVER_FLOOR = -3.0;
+
+// Returns a height function that keeps the road and player above the river channel.
+// In the bridge zone (z: -235→-282 at x≈4) it restores the carved terrain depth so
+// the asphalt sits at flat grade over the full span — no step-down, no arch.
+// Outside the bridge zone it clamps to RIVER_FLOOR so the player can wade without
+// sinking below the water surface.
 // Exported so main.ts can use it for the player's height function too.
 export function makeBridgedHeight(
   getHeightAt: (x: number, z: number) => number,
 ): (x: number, z: number) => number {
-  const Z1 = -248, Z2 = -282;
-  const X_CENTER = 4, X_HALF = 14;
-  const ARCH = 0.8;
+  const Z1 = -235; // north edge — starts before carve zone begins
+  const Z2 = -282; // south edge of carved channel
+  const X_CENTER = 4;
+  const X_HALF = 14;
   return (x: number, z: number): number => {
     if (z <= Z1 && z >= Z2 && Math.abs(x - X_CENTER) < X_HALF) {
-      const t = (z - Z1) / (Z2 - Z1); // 0=north bank, 1=south bank
-      const uncarved = getHeightAt(x, z) + riverChannelOffset(x, z);
-      return uncarved + ARCH * 4 * t * (1 - t);
+      // Restore carve depth so the asphalt surface stays flat at y≈0
+      return getHeightAt(x, z) + riverChannelOffset(x, z);
     }
-    return getHeightAt(x, z);
+    const rawH = getHeightAt(x, z);
+    // Outside bridge zone: over river channel, keep player at water surface
+    if (riverChannelOffset(x, z) > 0) {
+      return Math.max(rawH, RIVER_FLOOR);
+    }
+    return rawH;
   };
 }
 
@@ -114,35 +124,35 @@ export function createRoad(
   // Y offsets are all raised by 0.03 above the gravel surface so the asphalt
   // sits on top of the gravel edge at the junction — no z-fighting.
   // Width is 1.5× gravel (18 units total = two lanes).
-  const CITY_Y = Y_ROAD + 0.03;       // asphalt surface
-  const CITY_Y_DASH = CITY_Y + 0.08;  // centre dashes above asphalt
-  const CITY_Y_EDGE = CITY_Y + 0.04;  // shoulder lines above asphalt
+  const CITY_Y = Y_ROAD + 0.03; // asphalt surface
+  const CITY_Y_DASH = CITY_Y + 0.08; // centre dashes above asphalt
+  const CITY_Y_EDGE = CITY_Y + 0.04; // shoulder lines above asphalt
   const cityPts = sampleSpine(CITY_SPINE, 1.0);
   const cityH = makeBridgedHeight(getHeightAt); // bridges over the carved river channel
 
   const asphaltMat = new THREE.MeshLambertMaterial({ color: 0x1e1e1e });
-  scene.add(new THREE.Mesh(
-    buildRibbon(cityPts, cityH, 0, CITY_ROAD_HALF, CITY_Y, 6, 9),
-    asphaltMat,
-  ));
+  scene.add(
+    new THREE.Mesh(buildRibbon(cityPts, cityH, 0, CITY_ROAD_HALF, CITY_Y, 6, 9), asphaltMat),
+  );
 
   // Yellow dashed centre divider (between the two lanes)
   const dashMat = new THREE.MeshLambertMaterial({ map: buildDashTexture() });
-  scene.add(new THREE.Mesh(
-    buildRibbon(cityPts, cityH, 0, 0.25, CITY_Y_DASH, 8, 2),
-    dashMat,
-  ));
+  scene.add(new THREE.Mesh(buildRibbon(cityPts, cityH, 0, 0.25, CITY_Y_DASH, 8, 2), dashMat));
 
   // White shoulder lines at each road edge
   const cityLineMat = new THREE.MeshLambertMaterial({ color: 0xbbbbbb });
-  scene.add(new THREE.Mesh(
-    buildRibbon(cityPts, cityH, -(CITY_ROAD_HALF - LINE_HALF), LINE_HALF, CITY_Y_EDGE, 4, 2),
-    cityLineMat,
-  ));
-  scene.add(new THREE.Mesh(
-    buildRibbon(cityPts, cityH, CITY_ROAD_HALF - LINE_HALF, LINE_HALF, CITY_Y_EDGE, 4, 2),
-    cityLineMat,
-  ));
+  scene.add(
+    new THREE.Mesh(
+      buildRibbon(cityPts, cityH, -(CITY_ROAD_HALF - LINE_HALF), LINE_HALF, CITY_Y_EDGE, 4, 2),
+      cityLineMat,
+    ),
+  );
+  scene.add(
+    new THREE.Mesh(
+      buildRibbon(cityPts, cityH, CITY_ROAD_HALF - LINE_HALF, LINE_HALF, CITY_Y_EDGE, 4, 2),
+      cityLineMat,
+    ),
+  );
 
   return { crystalObstacles };
 }

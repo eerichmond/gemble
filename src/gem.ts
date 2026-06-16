@@ -8,15 +8,15 @@ export interface GemResult {
 
 const GEM_X = -52;
 const GEM_Z = 108;
-const PYRAMID_H = 12;   // ~deciduous tree height
-const PYRAMID_R = 2.5;  // base radius
+const PYRAMID_H = 12; // ~deciduous tree height
+const PYRAMID_R = 2.5; // base radius
 const CRYSTAL_DIST = 12; // one road-width away in each cardinal direction
 
 const CRYSTAL_OFFSETS: [number, number][] = [
-  [0, CRYSTAL_DIST],   // north
-  [0, -CRYSTAL_DIST],  // south
-  [CRYSTAL_DIST, 0],   // east
-  [-CRYSTAL_DIST, 0],  // west
+  [0, CRYSTAL_DIST], // north
+  [0, -CRYSTAL_DIST], // south
+  [CRYSTAL_DIST, 0], // east
+  [-CRYSTAL_DIST, 0], // west
 ];
 
 function crystalMat(): THREE.MeshPhongMaterial {

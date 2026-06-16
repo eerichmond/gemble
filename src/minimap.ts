@@ -17,22 +17,23 @@ export function createMinimap(
 ): {
   update: (playerX: number, playerZ: number, playerYaw: number) => void;
 } {
-  const W = 130, H = 160;
+  const W = 130,
+    H = 160;
 
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
   Object.assign(canvas.style, {
-    position:     'fixed',
-    bottom:       '16px',
-    left:         '16px',
-    width:        `${W}px`,
-    height:       `${H}px`,
+    position: 'fixed',
+    bottom: '16px',
+    left: '16px',
+    width: `${W}px`,
+    height: `${H}px`,
     borderRadius: '6px',
-    border:       '1px solid rgba(255,255,255,0.25)',
-    background:   'rgba(0,0,0,0.55)',
-    pointerEvents:'none',
-    zIndex:       '10',
+    border: '1px solid rgba(255,255,255,0.25)',
+    background: 'rgba(0,0,0,0.55)',
+    pointerEvents: 'none',
+    zIndex: '10',
   });
   document.body.appendChild(canvas);
 
@@ -40,8 +41,8 @@ export function createMinimap(
 
   // World spans: X ∈ [-250, +250] → width 500; Z ∈ [-440, +250] → height 690
   function toMap(wx: number, wz: number): [number, number] {
-    const mx = (wx + 250) / 500 * W;
-    const my = (250 - wz) / 690 * H;
+    const mx = ((wx + 250) / 500) * W;
+    const my = ((250 - wz) / 690) * H;
     return [mx, my];
   }
 
@@ -59,9 +60,7 @@ export function createMinimap(
       // Static: gem (purple), chests (gold), flying eye (red)
       for (const e of staticEntities) {
         const [mx, my] = toMap(e.x, e.z);
-        const color = e.type === 'gem' ? '#aa44ff'
-          : e.type === 'chest'     ? '#ffcc00'
-          : '#ff4444';
+        const color = e.type === 'gem' ? '#aa44ff' : e.type === 'chest' ? '#ffcc00' : '#ff4444';
         dot(mx, my, 3, color);
       }
 
@@ -83,7 +82,7 @@ export function createMinimap(
       ctx.translate(px, py);
       ctx.rotate(playerYaw + Math.PI);
       ctx.beginPath();
-      ctx.moveTo(0, -6);   // tip (pointing up before rotation)
+      ctx.moveTo(0, -6); // tip (pointing up before rotation)
       ctx.lineTo(-4, 4);
       ctx.lineTo(4, 4);
       ctx.closePath();

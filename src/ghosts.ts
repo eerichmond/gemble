@@ -4,19 +4,24 @@ import * as THREE from 'three';
 // 3 white translucent ghosts float between buildings. Each waits 12–28 s inside
 // a building then drifts to another, bobs gently, and vanishes on arrival.
 
-const FLOAT_HEIGHT = 1.0;  // group origin above terrain (ghost bottom)
-const FLOAT_SPEED = 3.5;   // units/second horizontal travel
+const FLOAT_HEIGHT = 1.0; // group origin above terrain (ghost bottom)
+const FLOAT_SPEED = 3.5; // units/second horizontal travel
 const WAIT_MIN = 12;
 const WAIT_MAX = 28;
 
 // City building centers — ghost waypoints
 const BUILDINGS: [number, number][] = [
-  [-22, -285], [ 28, -285],
-  [ 25, -330], [-18, -335],
+  [-22, -285],
+  [28, -285],
+  [25, -330],
+  [-18, -335],
   [-14, -360],
-  [-21, -385], [ 27, -385],
-  [-22, -410], [ 29, -410],
-  [-18, -430], [ 28, -430],
+  [-21, -385],
+  [27, -385],
+  [-22, -410],
+  [29, -410],
+  [-18, -430],
+  [28, -430],
 ];
 
 function makeRng(seed: number): () => number {
@@ -60,7 +65,11 @@ export function createGhosts(
   const eyeGeo = new THREE.SphereGeometry(0.18, 6, 5);
   const shadowGeo = new THREE.PlaneGeometry(2.6, 1.2);
 
-  function buildGhost(): { group: THREE.Group; shadow: THREE.Mesh; shadowMat: THREE.MeshLambertMaterial } {
+  function buildGhost(): {
+    group: THREE.Group;
+    shadow: THREE.Mesh;
+    shadowMat: THREE.MeshLambertMaterial;
+  } {
     const group = new THREE.Group();
 
     const body = new THREE.Mesh(bodyGeo, ghostMat);
@@ -105,9 +114,12 @@ export function createGhosts(
 
     const src = BUILDINGS[srcIdx]!;
     ghosts.push({
-      group, shadow, shadowMat,
+      group,
+      shadow,
+      shadowMat,
       state: 'dormant',
-      srcIdx, dstIdx,
+      srcIdx,
+      dstIdx,
       waitTimer: WAIT_MIN + rng() * (WAIT_MAX - WAIT_MIN) + i * 9,
       animTime: rng() * Math.PI * 2,
       srcY: getHeightAt(src[0], src[1]) + FLOAT_HEIGHT,
@@ -170,7 +182,7 @@ export function createGhosts(
           const groundY = getHeightAt(nx, nz);
           g.shadow.position.set(nx, groundY + 0.05, nz);
           // Shadow fades as ghost rises higher above ground
-          const heightAbove = (baseY + bob) - groundY;
+          const heightAbove = baseY + bob - groundY;
           g.shadowMat.opacity = Math.max(0.04, 0.28 - heightAbove * 0.015);
         }
       }

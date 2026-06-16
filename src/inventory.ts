@@ -18,16 +18,16 @@ export function createInventory(
   scene.add(camera);
 
   const armGroup = new THREE.Group();
-  armGroup.position.set(0.30, -0.80, -1.50);
+  armGroup.position.set(0.3, -0.8, -1.5);
   armGroup.scale.setScalar(0.35);
   armGroup.rotation.set(0.15, -0.25, 0.05);
   armGroup.visible = false;
   camera.add(armGroup);
 
   const items: LootType[] = [];
-  let nextIdx   = 0;    // index of the item to show on next "show" press
-  let showing   = false;
-  let wasDown   = false;
+  let nextIdx = 0; // index of the item to show on next "show" press
+  let showing = false;
+  let wasDown = false;
 
   function showItem(type: LootType): void {
     while (armGroup.children.length > 0) armGroup.remove(armGroup.children[0]!);

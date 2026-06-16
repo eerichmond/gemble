@@ -64,7 +64,8 @@ export function getRoadObstacles(): CircleObstacle[] {
 // Returns a height function that bridges the road over the carved river channel.
 // In the bridge zone (z: -248→-282 at x≈4) it adds the carved depth back plus a
 // parabolic arch — the road surface gently rises 0.8 u at mid-span (~4.7% grade).
-function makeBridgedHeight(
+// Exported so main.ts can use it for the player's height function too.
+export function makeBridgedHeight(
   getHeightAt: (x: number, z: number) => number,
 ): (x: number, z: number) => number {
   const Z1 = -248, Z2 = -282;

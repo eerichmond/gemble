@@ -233,3 +233,26 @@ export function createWaterways(
 
 // Export pond position so trees.ts can exclude the pond area from flank placement
 export const POND_EXCLUSION: CircleObstacle = { x: POND_X, z: POND_Z, radius: 22 };
+
+// Exclusion circles along the river arms to keep flank trees out of the water.
+// Spaced every ~22 u along each arm spine (radius 15 = outer half-width 13 + buffer).
+function spineExclusions(
+  spine: [number, number][],
+  radius: number,
+): CircleObstacle[] {
+  const out: CircleObstacle[] = [];
+  for (let i = 0; i < spine.length - 1; i++) {
+    const [ax, az] = spine[i]!;
+    const [bx, bz] = spine[i + 1]!;
+    const len = Math.sqrt((bx - ax) ** 2 + (bz - az) ** 2);
+    const steps = Math.max(2, Math.ceil(len / 22));
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      out.push({ x: ax + t * (bx - ax), z: az + t * (bz - az), radius });
+    }
+  }
+  return out;
+}
+
+export const RIVER_WEST_EXCLUSIONS: CircleObstacle[] = spineExclusions(WEST_ARM, 15);
+export const RIVER_EAST_EXCLUSIONS: CircleObstacle[] = spineExclusions(EAST_ARM, 15);

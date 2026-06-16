@@ -6,7 +6,7 @@ import { createTrees } from './trees';
 import { createProps } from './props';
 import { createPlayer } from './player';
 import { initInput } from './input';
-import { createRoad, getRoadObstacles } from './road';
+import { createRoad, getRoadObstacles, makeBridgedHeight } from './road';
 import { createCity } from './city';
 import { createGem } from './gem';
 import { createCompass } from './compass';
@@ -16,7 +16,7 @@ import { createChests } from './chests';
 import { createBirds } from './birds';
 import { createCapybaras } from './capybaras';
 import { createGhosts } from './ghosts';
-import { createWaterways, POND_EXCLUSION } from './waterways';
+import { createWaterways, POND_EXCLUSION, RIVER_WEST_EXCLUSIONS, RIVER_EAST_EXCLUSIONS } from './waterways';
 import { createFlankTrees } from './trees';
 import { createInventory } from './inventory';
 import { createMinimap } from './minimap';
@@ -52,11 +52,17 @@ const { update: updateChests, obstacles: chestObstacles } = createChests(
 );
 
 const { pondObstacle } = createWaterways(scene, getHeightAt);
-const flankTreePositions = createFlankTrees(scene, getHeightAt, [POND_EXCLUSION]);
+const flankTreePositions = createFlankTrees(scene, getHeightAt, [
+  POND_EXCLUSION,
+  ...RIVER_WEST_EXCLUSIONS,
+  ...RIVER_EAST_EXCLUSIONS,
+]);
+
+const playerHeightAt = makeBridgedHeight(getHeightAt);
 
 const { update: updatePlayer } = createPlayer(
   camera,
-  getHeightAt,
+  playerHeightAt,
   [...treePositions, ...flankTreePositions],
   [...mountainObstacles, ...gemObstacles, ...chestObstacles, ...crystalObstacles, pondObstacle],
   collisionBoxes,

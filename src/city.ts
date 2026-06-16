@@ -18,12 +18,7 @@ export interface CityResult {
 
 type HeightFn = (x: number, z: number) => number;
 
-// ---------------------------------------------------------------------------
-// Shared materials (module-level — created once)
-// ---------------------------------------------------------------------------
-
-const ASPHALT = new THREE.MeshLambertMaterial({ color: 0x1c1c1c });
-const LINE_MAT = new THREE.MeshLambertMaterial({ color: 0xd0d0a0 });
+// (Parking lot materials removed — parking lot was removed in Phase 10 river update)
 
 // ---------------------------------------------------------------------------
 // Public factory
@@ -35,8 +30,6 @@ export function createCity(
   scene: THREE.Scene,
   getHeightAt: HeightFn,
 ): CityResult {
-  createStreets(scene, getHeightAt);
-
   const collisionBoxes: BuildingBox[] = [
     buildGasStation(scene, getHeightAt),
     buildGroceryStore(scene, getHeightAt),
@@ -52,8 +45,8 @@ export function createCity(
     buildCommercial(scene, getHeightAt, 28, -430, 14, 12, 14, 0x4a506a, 3, 4),
   ];
 
-  placeStopSign(scene, getHeightAt, 10, -282);
-  placeStopSign(scene, getHeightAt, -3, -303);
+  placeStopSign(scene, getHeightAt, 10, -293);
+  placeStopSign(scene, getHeightAt, -3, -313);
   placeStreetlights(scene, getHeightAt);
 
   const tumbleweedMesh = createTumbleweed(scene, getHeightAt);
@@ -70,46 +63,13 @@ export function createCity(
 // Streets & parking
 // ---------------------------------------------------------------------------
 
-function createStreets(scene: THREE.Scene, getHeightAt: HeightFn): void {
-  // Main N-S street is now the asphalt road ribbon from road.ts
-  // (No E-W cross street — it was overlapping the building footprints)
-
-  // Parking lot in front of grocery store (centered at x=28 to match moved grocery)
-  const parkingY = getHeightAt(28, -268);
-  addFlat(scene, 26, 16, 2, parkingY + 0.02, -268, ASPHALT, 28, 0);
-  for (let i = 0; i < 3; i++) {
-    addFlat(scene, 0.25, 5, 2, parkingY + 0.04, -268, LINE_MAT, 21 + i * 8, 0);
-  }
-}
-
-// Utility: add a flat PlaneGeometry strip, optionally offset in X/Z
-function addFlat(
-  scene: THREE.Scene,
-  w: number,
-  d: number,
-  segments: number,
-  y: number,
-  centerZ: number,
-  mat: THREE.Material,
-  offsetX = 0,
-  offsetZ = 0,
-): THREE.Mesh {
-  const geo = new THREE.PlaneGeometry(w, d, segments, segments);
-  geo.rotateX(-Math.PI / 2);
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.receiveShadow = true;
-  mesh.position.set(offsetX, y, centerZ + offsetZ);
-  scene.add(mesh);
-  return mesh;
-}
-
 // ---------------------------------------------------------------------------
-// Gas station  (-22, G, -285)  14×10×5
+// Gas station  (-22, G, -300)  14×10×5
 // ---------------------------------------------------------------------------
 
 function buildGasStation(scene: THREE.Scene, getHeightAt: HeightFn): BuildingBox {
   const bx = -22;
-  const bz = -285;
+  const bz = -300;
   const w = 14;
   const d = 10;
   const h = 5;
@@ -145,7 +105,7 @@ function buildGasStation(scene: THREE.Scene, getHeightAt: HeightFn): BuildingBox
 
 function buildGroceryStore(scene: THREE.Scene, getHeightAt: HeightFn): BuildingBox {
   const bx = 28;
-  const bz = -285;
+  const bz = -300;
   const w = 24;
   const d = 16;
   const h = 7;

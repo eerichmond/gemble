@@ -2,6 +2,8 @@
 
 A first-person mystery built entirely in the browser. Explore a fog-lit pine forest and an abandoned city — somewhere in it is a hidden gem.
 
+**[▶ Play it live at gemble.eerichmond.com](https://gemble.eerichmond.com)**
+
 ![The hidden gem glowing in the forest, surrounded by purple crystal pillars](docs/gemble-screenshot-purple-diamond.webp)
 
 ---

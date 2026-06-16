@@ -20,18 +20,26 @@ No installation, no accounts. Just arrow keys and a sense of adventure.
 
 ## World
 
-```
-         N
-    ┌─────────────────────────────┐
-    │  Dense pine forest          │  ← fog, rolling hills, crystals
-    │  Gravel road winds south    │
-    │  Asphalt begins             │  ← city entrance
-    │  Abandoned city             │  ← buildings, flying eye, the gem
-    └─────────────────────────────┘
-         S
-```
+```mermaid
+flowchart TD
+    FOREST["🌲 Pine Forest
+    ───────────────────
+    Fog · Rolling hills · Tall pines
+    Capybaras · Crows · Treasure chests
+    Crystal Troll · Winged Monster
+    💎 A hidden gem is somewhere in here..."]
 
-The terrain is a single 500×700 unit mesh. Hills flatten gradually as you head south into the city. Fog thickens in the valleys.
+    ROAD(["🛤️ Gravel road winds south
+    then turns to asphalt"])
+
+    CITY["🏚️ Abandoned City
+    ───────────────────
+    Flat terrain · Empty streets
+    Flying Eye · Ghosts · Treasure chests"]
+
+    FOREST -->|"follow the road south"| ROAD
+    ROAD -->|"deeper into the dark"| CITY
+```
 
 ---
 

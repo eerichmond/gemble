@@ -74,9 +74,9 @@ export function createPlayer(
   buildingBoxes: BuildingBox[] = [],
 ): PlayerResult {
   let yaw = 0;
-  // Spawn north of crystal formation so player faces south into the crystals
-  let posX = -52;
-  let posZ = 130;
+  // Spawn on the city road, facing south into the city
+  let posX = 0;
+  let posZ = -265;
 
   // Place camera at spawn height immediately
   camera.position.set(posX, getHeightAt(posX, posZ) + PLAYER_HEIGHT, posZ);

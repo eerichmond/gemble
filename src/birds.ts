@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { CircleObstacle } from './terrain';
 
 // ── Birds (Phase 5) ───────────────────────────────────────────────────────────
 // Crows rest in groups of 3-4. Walk within 5 units of any bird and the whole
@@ -69,6 +70,7 @@ function playCaw(): void {
 export function createBirds(
   scene: THREE.Scene,
   getHeightAt: (x: number, z: number) => number,
+  excludeZones: CircleObstacle[] = [],
 ): { update: (dt: number, playerX: number, playerZ: number) => void } {
   // Shared geometries across all birds
   const bodyGeo = new THREE.SphereGeometry(0.25, 6, 4);
@@ -120,13 +122,18 @@ export function createBirds(
 
   // Place each group: pick a clear center, then scatter members within GROUP_SPREAD
   GROUP_SIZES.forEach((count, groupId) => {
-    // Pick group center
+    // Pick group center — avoid spawn zone and all exclusion zones (mountains, trees)
     let cx = 0, cz = 0;
-    for (let tries = 0; tries < 50; tries++) {
+    for (let tries = 0; tries < 200; tries++) {
       cx = (rng() * 2 - 1) * 170;
       cz = (rng() * 2 - 1) * 170;
-      const dx = cx - SPAWN_X, dz = cz - SPAWN_Z;
-      if (dx * dx + dz * dz >= SPAWN_CLEAR * SPAWN_CLEAR) break;
+      const dsx = cx - SPAWN_X, dsz = cz - SPAWN_Z;
+      if (dsx * dsx + dsz * dsz < SPAWN_CLEAR * SPAWN_CLEAR) continue;
+      const blocked = excludeZones.some(e => {
+        const dx = cx - e.x, dz = cz - e.z;
+        return dx * dx + dz * dz < (e.radius + 1) * (e.radius + 1);
+      });
+      if (!blocked) break;
     }
 
     for (let m = 0; m < count; m++) {

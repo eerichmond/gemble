@@ -169,7 +169,7 @@ function buildFood(): THREE.Group {
   return g;
 }
 
-function buildLoot(type: LootType): THREE.Group {
+export function buildLoot(type: LootType): THREE.Group {
   switch (type) {
     case 'armor':  return buildArmor();
     case 'sword':  return buildSword();
@@ -243,7 +243,8 @@ function buildChest(
 export function createChests(
   scene: THREE.Scene,
   getHeightAt: (x: number, z: number) => number,
-  mountainObstacles: CircleObstacle[] = [],
+  excludeZones: CircleObstacle[] = [],
+  onLootPickedUp?: (type: LootType) => void,
 ): {
   update: (dt: number, playerX: number, playerZ: number) => void;
   obstacles: CircleObstacle[];
@@ -266,9 +267,9 @@ export function createChests(
     if (x > -82 && x < 82 && z < -258 && z > -442) continue;  // city zone
     if (x > 5 && x < 30) continue;                             // road corridor
 
-    const tooClose = mountainObstacles.some(m => {
+    const tooClose = excludeZones.some(m => {
       const dx = x - m.x, dz = z - m.z;
-      return dx * dx + dz * dz < (m.radius + 4) * (m.radius + 4);
+      return dx * dx + dz * dz < (m.radius + 2) * (m.radius + 2);
     });
     if (tooClose) continue;
 
@@ -283,7 +284,8 @@ export function createChests(
     obstacles,
     update(dt: number, playerX: number, playerZ: number): void {
       const spaceDown = isKeyDown('Space');
-      const spaceJustPressed = spaceDown && !spaceWasDown;
+      const shift = isKeyDown('ShiftLeft') || isKeyDown('ShiftRight');
+      const spaceJustPressed = spaceDown && !spaceWasDown && !shift;
       spaceWasDown = spaceDown;
 
       if (spaceJustPressed) {
@@ -307,6 +309,7 @@ export function createChests(
             if (!nearest.lootTaken) {
               nearest.loot.visible = false;
               nearest.lootTaken = true;
+              onLootPickedUp?.(nearest.lootType);
             }
             nearest.interiorLight.intensity = 1;
             nearest.state = 'looted';

@@ -18,7 +18,8 @@ import { createCapybaras } from './capybaras';
 import { createGhosts } from './ghosts';
 import { createWaterways, POND_EXCLUSION } from './waterways';
 import { createFlankTrees } from './trees';
-// FUTURE Phase 2: import { applyDuskAtmosphere } from './atmosphere';
+import { createInventory } from './inventory';
+import { createMinimap } from './minimap';
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const { scene, renderer, camera } = initScene(canvas);
@@ -35,15 +36,21 @@ const { treePositions } = createTrees(scene, getHeightAt, excludeZones);
 createProps(scene, getHeightAt, excludeZones);
 const { crystalObstacles } = createRoad(scene, getHeightAt);
 
-// Phase 4: city sits directly on the extended terrain mesh
 const { collisionBoxes, update: updateCity } = createCity(scene, getHeightAt);
-
-// Phase 4: gem at the apartment base
 const { update: updateGem, obstacles: gemObstacles } = createGem(scene, getHeightAt);
 
-const { update: updateChests, obstacles: chestObstacles } = createChests(scene, getHeightAt, mountainObstacles);
+const inventory = createInventory(scene, camera);
 
-// Phase 10: waterways (pond, stream, cliff, river) + city-flank trees
+// All circle exclusion zones: mountains + road + tree trunks
+const allCircleZones = [...excludeZones, ...treePositions];
+
+const { update: updateChests, obstacles: chestObstacles } = createChests(
+  scene,
+  getHeightAt,
+  allCircleZones,
+  (type) => inventory.pickupItem(type),
+);
+
 const { pondObstacle, cliffBox } = createWaterways(scene, getHeightAt);
 const flankTreePositions = createFlankTrees(scene, getHeightAt, [POND_EXCLUSION]);
 
@@ -54,14 +61,27 @@ const { update: updatePlayer } = createPlayer(
   [...mountainObstacles, ...gemObstacles, ...chestObstacles, ...crystalObstacles, pondObstacle],
   [...collisionBoxes, cliffBox],
 );
-const { update: updateBirds } = createBirds(scene, getHeightAt);
-const { update: updateCapybaras } = createCapybaras(scene, getHeightAt, excludeZones);
+const { update: updateBirds } = createBirds(scene, getHeightAt, allCircleZones);
+const { update: updateCapybaras, capybaraPositions } = createCapybaras(scene, getHeightAt, allCircleZones);
 const { update: updateGhosts } = createGhosts(scene, getHeightAt);
-const { update: updateForestMonsters } = createMonsters(scene, getHeightAt);
+const { update: updateForestMonsters, positions: monsterPositions } = createMonsters(
+  scene, getHeightAt, allCircleZones, collisionBoxes,
+);
 
 const compass = createCompass(camera);
 initAudio();
 const { update: updateFlyingEye } = createFlyingEye(scene, getHeightAt(0, -310));
+
+// Minimap: gem at (-52, 108), flying eye at (0, -310), chests from chestObstacles
+const minimap = createMinimap(
+  [
+    { x: -52, z: 108, type: 'gem' },
+    { x: 0, z: -310, type: 'flyingEye' },
+    ...chestObstacles.map(c => ({ x: c.x, z: c.z, type: 'chest' as const })),
+  ],
+  monsterPositions,
+  capybaraPositions,
+);
 
 const clock = new THREE.Clock();
 
@@ -80,6 +100,8 @@ function loop(): void {
   updateGhosts(dt);
   updateForestMonsters(dt);
   compass.update();
+  inventory.update();
+  minimap.update(camera.position.x, camera.position.z, camera.rotation.y);
 
   renderer.render(scene, camera);
   stats.end();
